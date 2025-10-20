@@ -1,3 +1,5 @@
+# Simple HTTP Server
+
 import mimetypes
 import os
 import socket
@@ -7,6 +9,8 @@ PORT = 8080
 
 
 class Status:
+    """Class representing an HTTP status code and its associated text."""
+
     def __init__(self, code, text):
         self.code = code
         self.text = text
@@ -18,7 +22,8 @@ def create_response(body, status, content_type="text/plain; charset=utf-8"):
     Args:
         body (str or bytes): The body of the HTTP response.
         status (Status): The Status object containing the HTTP status code and text.
-        content_type (str, optional): The mimetype of the body content. Defaults to 'text/plain; charset=utf-8'.
+        content_type (str, optional): The mimetype of the body content.
+                                      Defaults to 'text/plain; charset=utf-8'.
 
     Returns:
         bytes: A UTF-8 encoded HTTP response message.
