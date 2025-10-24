@@ -2,23 +2,65 @@
 
 import mimetypes
 import os
-import sys
 import socket
 import threading
 
-'''Defined HOST value at entry point'''
-HOST = None  # Localhost
-PORT = 8080
-MAXTHREADCOUNT = 1
+HOST = "127.0.0.1" 
+PORT = 3000
+SOCKET_THREADS = []
+MAX_THREAD_COUNT = 1
 MAX_LISTEN_QUEUE_SIZE = 0
 
-
+# REQUEST HANDLING
 class Status:
     """Class representing an HTTP status code and its associated text."""
 
     def __init__(self, code, text):
         self.code = code
         self.text = text
+
+#TODO: Possibly create a custom thread class
+#TODO: properly lock shared materials
+def initialize_socket_thread(conn, addr):
+    """
+    Function is repsonsible for dispatching threads. If the number of active threads is less than 
+    MAX_THREAD_COUNT then the thread is added to an array started.
+    Otherwise the socket is closed and no thread is created.
+    """
+    print("server")
+    if len(SOCKET_THREADS) >= MAX_THREAD_COUNT:
+        with conn:
+            conn.shutdown(socket.SHUT_RDWR)
+            conn.close()
+            print("Thread limit reached")
+        return
+    
+    # Thread creation.
+    t=threading.Thread(target=thread_socket_main, args=(conn,addr))
+    SOCKET_THREADS.append(t)
+    t.start()
+    return
+
+#TODO: properly lock shared materials
+def thread_socket_main(conn, addr):
+    """Function is spun up for each active thread. Handles HTTP server send and receive."""
+    print(f"Connected by {addr}", flush=True)
+    with conn:
+        while True:
+            #TODO: Somehow ensure loop does not end while data is in transmit, what if 0 bytes arrive
+            data = conn.recv(1024)
+            if not data:
+                break
+            response = handle_request(data)
+            conn.sendall(response)
+
+        # thread termination process. Occurs after break
+        SOCKET_THREADS.remove(threading.current_thread())
+        conn.shutdown(socket.SHUT_RDWR)
+        conn.close()
+    #TODO: 
+    print(f"number of active threads: {len(SOCKET_THREADS)}", flush=True)
+    return
 
 
 def create_response(body, status, content_type="text/plain; charset=utf-8"):
@@ -86,38 +128,25 @@ def handle_request(request):
     status = Status(400, "Bad Request")
     return create_response(body, status)
 
-#TODO: destroy sockets when out of use
+# SERVER BEHAVIOUR
 def start_server():
     """The main server loop that listens for incoming connections and handles requests."""
+    
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        print(HOST)
         server_socket.bind((HOST, PORT))
         server_socket.listen(MAX_LISTEN_QUEUE_SIZE)  # Listen for incoming connections
         print(f"Server is listening for request on {HOST}:{PORT}")
 
-        
+        # allows server to continue with other functions until 
+
         while True:  # Loop forever
+            print("Waiting for connection")
+            conn, addr = server_socket.accept()  # Accept a new connection  
 
-            conn, addr = server_socket.accept()  # Accept a new connection
-            with conn:
+            # TODO: Ensure that there is no bug related to shallow copies and socket
+            initialize_socket_thread(conn, addr)
 
-                print(f"Connected by {addr}")
-                while True:
-                    data = conn.recv(1024)
-                    if not data:
-                        break
-                    response = handle_request(data)
-                    conn.sendall(response)
-
+                
 
 if __name__ == "__main__":
-    
-    if len(sys.argv) > 1 and sys.argv[1] == "expose":
-        # name is weird but python docs recommoned this way
-        HOST = socket.gethostname()
-    else:
-        HOST = "127.0.0.1" 
-
-    print(f"Server hosting from: {HOST}")
-
     start_server()
