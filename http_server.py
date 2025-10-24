@@ -2,10 +2,15 @@
 
 import mimetypes
 import os
+import sys
 import socket
+import threading
 
-HOST = "127.0.0.1"  # Localhost
+'''Defined HOST value at entry point'''
+HOST = None  # Localhost
 PORT = 8080
+MAXTHREADCOUNT = 1
+MAX_LISTEN_QUEUE_SIZE = 0
 
 
 class Status:
@@ -81,16 +86,21 @@ def handle_request(request):
     status = Status(400, "Bad Request")
     return create_response(body, status)
 
-
+#TODO: destroy sockets when out of use
 def start_server():
     """The main server loop that listens for incoming connections and handles requests."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        print(HOST)
         server_socket.bind((HOST, PORT))
-        server_socket.listen()  # Listen for incoming connections
+        server_socket.listen(MAX_LISTEN_QUEUE_SIZE)  # Listen for incoming connections
         print(f"Server is listening for request on {HOST}:{PORT}")
+
+        
         while True:  # Loop forever
+
             conn, addr = server_socket.accept()  # Accept a new connection
             with conn:
+
                 print(f"Connected by {addr}")
                 while True:
                     data = conn.recv(1024)
@@ -101,4 +111,13 @@ def start_server():
 
 
 if __name__ == "__main__":
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "expose":
+        # name is weird but python docs recommoned this way
+        HOST = socket.gethostname()
+    else:
+        HOST = "127.0.0.1" 
+
+    print(f"Server hosting from: {HOST}")
+
     start_server()
