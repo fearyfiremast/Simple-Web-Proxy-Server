@@ -27,7 +27,6 @@ def start_server():
         while True:  # Loop forever
             print("Waiting for connection")
             conn, addr = server_socket.accept()  # Accept a new connection
-            print(type(conn))
             initialize_socket_thread(conn, addr)
 
 
