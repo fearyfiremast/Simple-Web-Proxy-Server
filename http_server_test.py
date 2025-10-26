@@ -9,11 +9,14 @@ HOST = "127.0.0.1"
 DESTINATION = None
 RESOURCE = "/test.html"
 
-def capture_package_values(cmd : list, delimiter='\n') -> subprocess.CompletedProcess:
-    toReturn = (subprocess.run(cmd, capture_output=True, text=True)).stdout
-    return toReturn.split(delimiter)
-
 class TestPart1(unittest.TestCase):
+    '''
+        This class is responsible for performing unit tests related to part one of the assignments.
+        This includes, verifying server response for the HTTP GET method and codes 200, 304, 403,
+         404, and 505.\n
+
+        Extends the unittest.TestCase class.
+    '''
 
     def setUp(self):
        global DESTINATION
@@ -24,8 +27,10 @@ class TestPart1(unittest.TestCase):
     
 
     
-    def test_GET_method_header(self):
-        
+    def test_GET_method_header_proper(self):
+        '''
+            unit test that verifies if the header is well formed
+        '''
         # cannot use -I or --head commands because curl sends a HEAD
         # method not a GET method
         cmd = [
@@ -33,18 +38,27 @@ class TestPart1(unittest.TestCase):
             "-i",
             f"{DESTINATION}"
         ]
-        result = capture_package_values(cmd)
+        result = capture_package_values(cmd).split("\n")
+
+        # Goes through each header field and checks for expected response
         self.assertEqual(result[0], "HTTP/1.1 200 OK")
+        self.assertEqual(result[1], "Content-Type: text/html")
+        self.assertEqual(result[2], "Content-Length: 327")
+        self.assertEqual(result[3], "Connection: close")
+
     
-    def test_GET_method_body(self):
+    def test_GET_method_body_proper(self):
+        '''
+            unit test that verifies if the payload was delivered as expected
+        '''
         cmd = [
             "curl",
             f"{DESTINATION}"
         ]
         result = capture_package_values(cmd)
         with open("./test.html", mode='r') as test_html:
-            data = test_html.read().split("\n")
-            self.assertEqual(data, result)
+            data = test_html.read()
+            self.assertEqual(data.split("\n"), result.split("\n"))
 
 def refreshReport():
     if REPORT_STATUS == False:
@@ -56,6 +70,19 @@ def appendReport():
     if REPORT_STATUS == False:
         return # redundant for now
     return
+
+def capture_package_values(cmd : list):
+    '''
+        runs a subprocess and returns its output as text.
+
+        Args:
+            cmd (list): A list that contains a command as well as its arguments.
+
+        Returns:
+            The output of cmd as a string.
+    '''
+    toReturn = (subprocess.run(cmd, capture_output=True, text=True)).stdout
+    return toReturn
 
 # entry point
 # specific tests can be ran from the command line: https://docs.python.org/3/library/unittest.html
