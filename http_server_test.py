@@ -9,8 +9,11 @@ HOST = "127.0.0.1"
 DESTINATION = None
 RESOURCE = "/test.html"
 
+def capture_package_values(cmd : list, delimiter='\r\n') -> subprocess.CompletedProcess:
+    toReturn = (subprocess.run(cmd, capture_output=True, text=True)).stdout
+    return toReturn.split(delimiter)
+
 class TestPart1(unittest.TestCase):
-    request = None
 
     def setUp(self):
        global DESTINATION
@@ -19,16 +22,17 @@ class TestPart1(unittest.TestCase):
     def tearDown(self):
         return super().tearDown()
     
-    def test_GET_method(self):
+
+    
+    def test_GET_header_method(self):
         # test does not need bespoke 
         cmd = [
             "curl",
-            "-i",
+            "--head",
             f"{DESTINATION}"
         ]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        print(result)
+        result = capture_package_values(cmd, "\n")
+        self.assertEqual(result[0], "HTTP/1.1 200 OK")
         return
 
 def refreshReport():
