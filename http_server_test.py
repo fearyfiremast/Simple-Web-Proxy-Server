@@ -3,7 +3,9 @@ import subprocess
 import sys
 
 # Declarations
-REPORT_STATUS = False # if value is true write report
+REPORT_STATUS = True # if value is true write report
+REPORT_NAME = "results.txt"
+
 PORT = 8080
 HOST = "127.0.0.1"
 DESTINATION = None
@@ -25,8 +27,6 @@ class TestPart1(unittest.TestCase):
     def tearDown(self):
         return super().tearDown()
     
-
-    
     def test_GET_method_header_proper(self):
         '''
             unit test that verifies if the header is well formed
@@ -38,7 +38,9 @@ class TestPart1(unittest.TestCase):
             "-i",
             f"{DESTINATION}"
         ]
-        result = capture_package_values(cmd).split("\n")
+        result = capture_package_values(cmd)
+        append_report("SERVER GET 200 OK RESPONSE", result)
+        result = result.split("\n")
 
         # Goes through each header field and checks for expected response
         self.assertEqual(result[0], "HTTP/1.1 200 OK")
@@ -60,15 +62,24 @@ class TestPart1(unittest.TestCase):
             data = test_html.read()
             self.assertEqual(data.split("\n"), result.split("\n"))
 
-def refreshReport():
+def refresh_report():
     if REPORT_STATUS == False:
         return # redundant for now
+
+    open("report.txt", "w").close()
     return
 
 # project states that we need screenshots of output.
-def appendReport():
+def append_report(title : str, content : str):
     if REPORT_STATUS == False:
-        return # redundant for now
+        return # report unwanted
+
+    with open(REPORT_NAME, "a") as data:
+        title = "-- TITLE: " + title + "--\n"
+        content += "\n"
+        data.write(title)
+        data.write(content)
+
     return
 
 def capture_package_values(cmd : list):
@@ -95,4 +106,5 @@ if __name__ == "__main__":
             PORT = int(sys.argv[1])
             del sys.argv[1]
 
+    refresh_report()
     unittest.main()
