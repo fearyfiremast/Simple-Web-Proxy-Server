@@ -9,7 +9,7 @@ HOST = "127.0.0.1"
 DESTINATION = None
 RESOURCE = "/test.html"
 
-def capture_package_values(cmd : list, delimiter='\r\n') -> subprocess.CompletedProcess:
+def capture_package_values(cmd : list, delimiter='\n') -> subprocess.CompletedProcess:
     toReturn = (subprocess.run(cmd, capture_output=True, text=True)).stdout
     return toReturn.split(delimiter)
 
@@ -24,16 +24,27 @@ class TestPart1(unittest.TestCase):
     
 
     
-    def test_GET_header_method(self):
-        # test does not need bespoke 
+    def test_GET_method_header(self):
+        
+        # cannot use -I or --head commands because curl sends a HEAD
+        # method not a GET method
         cmd = [
             "curl",
-            "--head",
+            "-i",
             f"{DESTINATION}"
         ]
-        result = capture_package_values(cmd, "\n")
+        result = capture_package_values(cmd)
         self.assertEqual(result[0], "HTTP/1.1 200 OK")
-        return
+    
+    def test_GET_method_body(self):
+        cmd = [
+            "curl",
+            f"{DESTINATION}"
+        ]
+        result = capture_package_values(cmd)
+        with open("./test.html", mode='r') as test_html:
+            data = test_html.read().split("\n")
+            self.assertEqual(data, result)
 
 def refreshReport():
     if REPORT_STATUS == False:
