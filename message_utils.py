@@ -207,8 +207,12 @@ def handle_request(request):
         return toReturn
 
     '''
-    TODO: Implement cache behaviour: 
-    At this point the system knows that there is nothing preventing the 
+    TODO: Implement Cache behaviour: 
+    At this point the system knows the request is structurally sound.
+    Enters cache -> If the cache finds the resource determines if code 304 or 200 is appropriate.
+    Cache Miss -> Attempts to acquires resource from 'Web Server' May result in a 403, 404 code.
+                  If the resource is successfully acquired the 304 or 200 procedure is gone through
+                  again.
     '''
 
     path = os.path.join(".", path.lstrip("/"))  # Prevent directory traversal
