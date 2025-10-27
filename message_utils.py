@@ -193,6 +193,7 @@ def handle_request(request):
         status = Status(403, "Forbidden")
         return create_response(body, status)
 
+    #TODO Successful validation : Access cache
     # 304: Not Modified
     if "If-Modified-Since" in headers:
         last_modified = parsedate_to_datetime(headers["If-Modified-Since"]).timestamp()
