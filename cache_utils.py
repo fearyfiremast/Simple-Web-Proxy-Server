@@ -1,11 +1,13 @@
 """Module that handles server cache behaviour"""
+import threading
 
 class Cache:
     '''
-    Class that manages the internal behaviours of 
+    Class that stores and allows the retrieval of recently received requests
     '''
     _max_capacity = 1 # cache capacity
     _records = [] # Stores cached resources
+    _lock = threading.Lock()
 
     def __init__(self):
         return
