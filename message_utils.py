@@ -4,7 +4,7 @@ from email.utils import formatdate, parsedate_to_datetime
 import mimetypes
 import os
 from os.path import getmtime
-from time import time
+from time import sleep, time
 import logging
 
 
@@ -207,6 +207,10 @@ def handle_request(request):
     Returns:
         bytes: The UTF-8 encoded HTTP response message.
     """
+
+    # simulate processing delay
+    # sleep(0.01)
+
     request = request.decode("utf-8")  # Decode bytes to string
 
     # print(f"Full Request:\n{request}", flush=True)

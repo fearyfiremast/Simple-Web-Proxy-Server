@@ -7,6 +7,7 @@ from email.utils import formatdate
 import os
 import shlex
 import unittest
+import socket
 import subprocess
 import sys
 
@@ -95,7 +96,13 @@ class TestPart1(unittest.TestCase):
 
         status_line, headers, body = parse_response(result)
 
-        append_report("200 OK Response", headers, body, command=cmd)
+        append_report(
+            "200 OK",
+            headers,
+            body,
+            command=cmd,
+            status_line=status_line,
+        )
 
         # Check status
         self.assertTrue(status_line.startswith("HTTP/1.1 200"))
@@ -132,7 +139,12 @@ class TestPart1(unittest.TestCase):
 
         status_line, headers, _ = parse_response(result)
 
-        append_report("304 Not Modified Response", headers, command=cmd)
+        append_report(
+            "304 Not Modified",
+            headers,
+            command=cmd,
+            status_line=status_line,
+        )
 
         self.assertTrue(status_line.startswith("HTTP/1.1 304"))
         for name in ("Date", "Server", "Content-Length", "Connection"):
@@ -145,7 +157,12 @@ class TestPart1(unittest.TestCase):
         status_line, headers, body = parse_response(result)
 
         append_report(
-            "404 Not Found Response", headers, body, body_fmt="bash", command=cmd
+            "404 Not Found",
+            headers,
+            body,
+            body_fmt="bash",
+            command=cmd,
+            status_line=status_line,
         )
 
         self.assertTrue(status_line.startswith("HTTP/1.1 404"))
@@ -169,11 +186,12 @@ class TestPart1(unittest.TestCase):
             status_line, headers, body = parse_response(result)
 
             append_report(
-                "403 Forbidden Response: Locked File",
+                "403 Forbidden: Locked File",
                 headers,
                 body,
                 body_fmt="text",
                 command=cmd,
+                status_line=status_line,
             )
 
             self.assertTrue(status_line.startswith("HTTP/1.1 403"))
@@ -223,17 +241,25 @@ class TestPart1(unittest.TestCase):
     #         self.assertIn(name, headers)
 
     def test_505_headers_present(self):
-        """Send HTTP/1.0 request to trigger 505 and check headers are present."""
-        cmd = ["curl", "-i", "--http1.0", f"http://{HOST}:{PORT}/test.html"]
-        result = capture_package_values(cmd)
+
+        s = socket.socket()
+        s.connect((HOST, PORT))
+        request = "GET /test.html HTTP/3.0\r\nHost: localhost\r\n\r\n"
+        s.send(request.encode("utf-8"))
+        result = s.recv(4096).decode("utf-8")
+        s.close()
+
+        print("RESULT:", result)
+
         status_line, headers, body = parse_response(result)
 
         append_report(
-            "505 Version Not Supported Response",
+            "505 Version Not Supported",
             headers,
             body,
             body_fmt="bash",
-            command=cmd,
+            command=["Socket send: " + request.replace("\r\n", "\\r\\n")],
+            status_line=status_line,
         )
 
         self.assertTrue(
@@ -259,6 +285,7 @@ def append_report(
     body: str = None,
     body_fmt: str = "html",
     command: list | None = None,
+    status_line: str | None = None,
 ):
     if REPORT_STATUS == False:
         return
@@ -276,6 +303,11 @@ def append_report(
             data.write("### Command:\n\n")
             data.write("`" + cmd_text + "`\n")
             data.write("\n\n")
+        # Status line (if provided)
+        if status_line:
+            data.write("### Status Line:\n\n")
+            data.write("`" + status_line + "`\n\n")
+
         data.write("### Headers:\n\n")
         data.write("```http\n")
         for key, value in headers.items():

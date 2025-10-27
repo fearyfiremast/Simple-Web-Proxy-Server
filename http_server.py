@@ -3,6 +3,7 @@ The main server program that starts the HTTP server and listens for incoming con
 Runs up to the maximum number of threads defined in thread_utils.py.
 """
 
+import logging
 import socket
 import sys
 
@@ -14,6 +15,31 @@ HOST = "127.0.0.1"
 MAX_LISTEN_QUEUE_SIZE = 0
 PORT = 8080
 
+# ANSI color codes
+RESET = "\033[0m"
+COLORS = {
+    "DEBUG": "\033[36m",  # Cyan
+    "INFO": "\033[32m",  # Green
+    "WARNING": "\033[33m",  # Yellow
+    "ERROR": "\033[31m",  # Red
+    "CRITICAL": "\033[41m",  # Red background
+}
+
+
+class ColorFormatter(logging.Formatter):
+    def format(self, record):
+        color = COLORS.get(record.levelname, RESET)
+        message = super().format(record)
+        return f"{color}{message}{RESET}"
+
+
+formatter = ColorFormatter("[%(asctime)s] [%(levelname)s] [%(threadName)s] %(message)s")
+
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+
+logging.basicConfig(level=logging.INFO, handlers=[handler])
+
 
 # SERVER BEHAVIOUR
 def start_server():
@@ -23,7 +49,7 @@ def start_server():
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.bind((HOST, PORT))
         server_socket.listen(MAX_LISTEN_QUEUE_SIZE)  # Listen for incoming connections
-        logger.info(f"Server is listening for request on {HOST}:{PORT}")
+        logger.info("Server is listening for request on %s:%d", HOST, PORT)
 
         try:
             while True:  # Loop forever

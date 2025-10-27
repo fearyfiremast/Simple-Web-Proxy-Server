@@ -7,38 +7,12 @@ import threading
 # Project imports
 from message_utils import handle_request, create_503_response
 
-MAX_THREAD_COUNT = 10
+MAX_THREAD_COUNT = 16
 SOCKET_THREADS = []
 SOCKET_THREADS_LOCK = threading.Lock()
 
-# ANSI color codes
-RESET = "\033[0m"
-COLORS = {
-    "DEBUG": "\033[36m",  # Cyan
-    "INFO": "\033[32m",  # Green
-    "WARNING": "\033[33m",  # Yellow
-    "ERROR": "\033[31m",  # Red
-    "CRITICAL": "\033[41m",  # Red background
-}
-
-
-class ColorFormatter(logging.Formatter):
-    def format(self, record):
-        color = COLORS.get(record.levelname, RESET)
-        message = super().format(record)
-        return f"{color}{message}{RESET}"
-
-
-formatter = ColorFormatter("[%(asctime)s] [%(levelname)s] [%(threadName)s] %(message)s")
-
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-
-logging.basicConfig(level=logging.DEBUG, handlers=[handler])
 
 logger = logging.getLogger(__name__)
-
-# TODO: Consider creating a custom thread class
 
 
 def initialize_socket_thread(conn: socket.socket, addr):
