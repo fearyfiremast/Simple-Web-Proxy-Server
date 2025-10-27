@@ -41,14 +41,6 @@ class Cache:
         if record is None:
             return
         return
-    
-    def _response_to_record(self, response):
-        """
-        TODO: Converts the socket representation of data to cache representation
-        """
-        if response is None:
-            return
-        return
 
     def find_record(self, key):
         to_return = None
@@ -70,7 +62,7 @@ class Cache:
                     to_return.update_expiry_date()
                     self._records.remove(record)
                     # Propends record to front to emulate temporal locality
-                    self._records = [to_return, self._records] 
+                    self._records = [to_return] + self._records
                     break # We found the record that we wanted so we leave early. 
                     
             self._remove_records(expired_records)
@@ -78,10 +70,23 @@ class Cache:
         # returns data in a form that calling function can understand
         return self._record_to_response(to_return)
     
-    def insert_record(self):
-        with self._lock:
-            return
+    def insert_response(self, response):
         
+        # Formats the response into a record
+        record = Record(response)
+
+        with self._lock:
+            if len(self._records) > self._max_capacity:
+                '''
+                Look for elements that have expired 
+                -> If some were found, return to normal insert flow
+
+                If none, were found pop the last element
+                -> return to normal flow
+                '''
+            
+            #Normal flow
+            self._records = [record] + self._records
         return
     
 
@@ -95,6 +100,9 @@ class Record:
         self._url = url
         self._modification_date = modifaction_date
         self._data = data
+
+    def __init__(self, response):
+        return
 
     def update_expiry_date(self):
         return
