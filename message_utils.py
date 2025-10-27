@@ -5,6 +5,12 @@ import mimetypes
 import os
 from os.path import getmtime
 from time import time
+import logging
+
+
+# Serve files relative to the repository/module directory (document root)
+DOCUMENT_ROOT = os.path.dirname(os.path.abspath(__file__))
+logger = logging.getLogger(__name__)
 
 
 class Status:
@@ -24,10 +30,16 @@ def is_accessable_file(filepath):
     Returns:
         bool: True if the file exists and is accessible, False otherwise.
     """
-    if not os.path.abspath(filepath).startswith(os.getcwd()):
+    # Only allow files inside the document root
+    try:
+        abs_path = os.path.abspath(filepath)
+    except Exception:
         return False
-    else:
-        return os.path.isfile(filepath) and os.access(filepath, os.R_OK)
+
+    if not abs_path.startswith(DOCUMENT_ROOT):
+        return False
+
+    return os.path.isfile(abs_path) and os.access(abs_path, os.R_OK)
 
 
 def get_date_header():
@@ -79,7 +91,7 @@ def create_200_response(filepath):
     Returns:
         bytes: A UTF-8 encoded HTTP response message.
     """
-    # Read file content
+    # Read file content (filepath should be absolute)
     with open(filepath, "rb") as file:
         body = file.read()
     if isinstance(body, str):
@@ -191,7 +203,7 @@ def handle_request(request):
         key, value = line.split(":", 1)
         headers[key.strip()] = value.strip()  # Store header in a dictionary
 
-    if version != "HTTP/1.1":
+    if version not in ["HTTP/1.0", "HTTP/1.1"]:
         body = "HTTP Version Not Supported\n"
         status = Status(505, "HTTP Version Not Supported")
         return create_response(body, status)

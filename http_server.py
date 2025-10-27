@@ -7,7 +7,7 @@ import socket
 import sys
 
 # Project imports
-from thread_utils import initialize_socket_thread
+from thread_utils import initialize_socket_thread, logger
 
 
 HOST = "127.0.0.1"
@@ -20,14 +20,21 @@ def start_server():
     """The main server loop that listens for incoming connections and handles requests."""
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.bind((HOST, PORT))
         server_socket.listen(MAX_LISTEN_QUEUE_SIZE)  # Listen for incoming connections
-        print(f"Server is listening for request on {HOST}:{PORT}")
+        logger.info(f"Server is listening for request on {HOST}:{PORT}")
 
-        while True:  # Loop forever
-            print("Waiting for connection")
-            conn, addr = server_socket.accept()  # Accept a new connection
-            initialize_socket_thread(conn, addr)
+        try:
+            while True:  # Loop forever
+                logger.debug("Waiting for connection")
+                conn, addr = server_socket.accept()  # Accept a new connection
+                initialize_socket_thread(conn, addr)
+        except KeyboardInterrupt:
+            logger.info("Server is shutting down due to keyboard interrupt")
+        finally:
+            server_socket.close()
+            logger.info("Server has shut down")
 
 
 # Entry point
