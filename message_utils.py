@@ -148,6 +148,35 @@ def create_response(body, status):
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
+def request_well_formed(method, version):
+    """
+    Checks the request header for the correct version and if it calling a supported method by
+    the proxy server.
+
+    Args: 
+        method (str): The method contained within the request
+        version (str): The version of the http request (formated as "HTTP/x.x")
+
+    Returns:
+        If either the requests method is unsupported returns a code 400 response.
+        If the request method has a supported method but an unsupported version of HTTP
+        returns a 505 response
+
+        otherwise, returns None.
+    """
+    supported_methods = ["GET"] # Methods supported by the proxy server
+
+    if method not in supported_methods:
+        body = "Bad Request\n"
+        status = Status(400, "Bad Request")
+        return create_response(body, status)
+
+    if version != "HTTP/1.1":
+        body = "HTTP Version Not Supported\n"
+        status = Status(505, "HTTP Version Not Supported")
+        return create_response(body, status)
+
+    return None
 
 def handle_request(request):
     """Parse the HTTP request and generate the appropriate response.
@@ -173,10 +202,14 @@ def handle_request(request):
         key, value = line.split(":", 1)
         headers[key.strip()] = value.strip()  # Store header in a dictionary
 
-    if version != "HTTP/1.1":
-        body = "HTTP Version Not Supported\n"
-        status = Status(505, "HTTP Version Not Supported")
-        return create_response(body, status)
+    # Returns a response if request is NOT well formed
+    if toReturn := request_well_formed(method, version) is not None:
+        return toReturn
+
+    '''
+    TODO: Implement cache behaviour: 
+    At this point the system knows that there is nothing preventing the 
+    '''
 
     path = os.path.join(".", path.lstrip("/"))  # Prevent directory traversal
     # print(f"Requested Path: {path.lstrip("/")}", flush=True)
