@@ -1,6 +1,5 @@
 """Module that handles server cache behaviour"""
 import threading
-from email.utils import formatdate, parsedate_to_datetime
 from message_utils import get_date_header, convert_datetime_to_posix
 
 class Cache:
