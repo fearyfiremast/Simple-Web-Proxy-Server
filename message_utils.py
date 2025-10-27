@@ -39,6 +39,24 @@ def get_date_header():
     return formatdate(timeval=time(), localtime=False, usegmt=True)
 
 
+def is_not_modified_since(filepath, ims_header):
+    """Check if the file has been modified since the time specified in the If-Modified-Since header.
+
+    Args:
+        filepath (str): The path to the file.
+        ims_header (str): The value of the If-Modified-Since header.
+
+    Returns:
+        bool: True if the file has been modified since the specified time, False otherwise.
+    """
+    try:
+        ims_time = parsedate_to_datetime(ims_header).timestamp()
+        file_mtime = getmtime(filepath)
+        return file_mtime <= ims_time
+    except (TypeError, ValueError):
+        return True  # If parsing fails, assume modified
+
+
 def get_last_modified_header(filepath):
     """Generate a Last-Modified header for a given file.
 
@@ -195,11 +213,11 @@ def handle_request(request):
 
     # 304: Not Modified
     if "If-Modified-Since" in headers:
-        last_modified = parsedate_to_datetime(headers["If-Modified-Since"]).timestamp()
+        # last_modified = parsedate_to_datetime(headers["If-Modified-Since"]).timestamp()
 
         # Send 304 if file has not been modified since the time specified
         # i.e. file last modified time is less than or equal to the time in the header
-        if last_modified >= getmtime(path):
+        if is_not_modified_since(path, headers["If-Modified-Since"]) is False:
             return create_304_response()
 
     if len(lines) > 0:
