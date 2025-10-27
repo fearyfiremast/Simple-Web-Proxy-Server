@@ -38,12 +38,16 @@ class Cache:
         """
         TODO: Converts the cache representation of data to socket representation
         """
+        if record is None:
+            return
         return
     
-    def _response_to_record(self):
+    def _response_to_record(self, response):
         """
         TODO: Converts the socket representation of data to cache representation
         """
+        if response is None:
+            return
         return
 
     def find_record(self, key):
@@ -71,7 +75,8 @@ class Cache:
                     
             self._remove_records(expired_records)
  
-        return to_return
+        # returns data in a form that calling function can understand
+        return self._record_to_response(to_return)
     
     def insert_record(self):
         with self._lock:
