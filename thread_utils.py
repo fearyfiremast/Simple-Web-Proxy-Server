@@ -2,6 +2,7 @@
 
 import socket
 import threading
+from cache_utils import Cache
 
 # Project imports
 from message_utils import handle_request
@@ -13,7 +14,7 @@ SOCKET_THREADS_LOCK = threading.Lock()
 # TODO: Consider creating a custom thread class
 
 
-def initialize_socket_thread(conn: socket.socket, addr):
+def initialize_socket_thread(conn: socket.socket, addr, cache : Cache):
     """
     Function is repsonsible for dispatching threads. If the number of active threads is less than
     MAX_THREAD_COUNT then the thread is added to an array started.
@@ -35,7 +36,7 @@ def initialize_socket_thread(conn: socket.socket, addr):
                 return
 
         # Thread creation.
-        t = threading.Thread(target=thread_socket_main, args=(conn, addr))
+        t = threading.Thread(target=thread_socket_main, args=(conn, addr, cache))
         SOCKET_THREADS.append(t)
 
     # Start the thread outside of the lock
@@ -44,7 +45,7 @@ def initialize_socket_thread(conn: socket.socket, addr):
     return
 
 
-def thread_socket_main(conn: socket.socket, addr):
+def thread_socket_main(conn: socket.socket, addr, cache : Cache):
     """Function is spun up for each active thread. Handles HTTP server send and receive.\n
 
     Args:
@@ -63,7 +64,7 @@ def thread_socket_main(conn: socket.socket, addr):
                 request += data
             if not request:
                 break
-            response = handle_request(request)
+            response = handle_request(request, cache)
             conn.sendall(response)
             request = b""
 

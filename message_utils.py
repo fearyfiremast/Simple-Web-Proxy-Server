@@ -5,6 +5,7 @@ import mimetypes
 import os
 from os.path import getmtime
 from time import time
+from cache_utils import Cache
 
 
 class Status:
@@ -188,7 +189,7 @@ def request_well_formed(method, version):
 
     return None
 
-def handle_request(request):
+def handle_request(request, cache : Cache):
     """Parse the HTTP request and generate the appropriate response.
 
     Args:
