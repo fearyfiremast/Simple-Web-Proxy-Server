@@ -132,6 +132,25 @@ def create_304_response():
     return header_bytes
 
 
+def create_503_response():
+    """Create a 503 Service Unavailable HTTP response message.
+
+    Returns:
+        bytes: A UTF-8 encoded HTTP response message.
+    """
+    body = "Service Unavailable\n".encode("utf-8")
+    response_line = "HTTP/1.1 503 Service Unavailable\r\n"
+    headers = (
+        f"Date: {get_date_header()}\r\n"
+        "Server: Smith-Peters-Web-Server/1.0\r\n"
+        "Content-Type: text/plain; charset=utf-8\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "Connection: close\r\n"
+    )
+    header_bytes = (response_line + headers + "\r\n").encode("utf-8")
+    return header_bytes + body
+
+
 def create_404_response():
     """Create a 404 Not Found HTTP response message.
 
@@ -208,8 +227,9 @@ def handle_request(request):
         status = Status(505, "HTTP Version Not Supported")
         return create_response(body, status)
 
-    path = os.path.join(".", path.lstrip("/"))  # Prevent directory traversal
-    # print(f"Requested Path: {path.lstrip("/")}", flush=True)
+    # Resolve path within DOCUMENT_ROOT to prevent directory traversal
+    path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
+    # print(f"Requested Path: {path}", flush=True)
 
     # 404: File does not exist
     if not os.path.exists(path):
@@ -236,10 +256,9 @@ def handle_request(request):
         parts = request.split()
         if len(parts) >= 2:
             if method == "GET":  # Currently only handling GET requests
-                filepath = path.lstrip("/")
-                if os.path.isfile(filepath):
+                if os.path.isfile(path):
                     # 200 OK
-                    return create_200_response(filepath)
+                    return create_200_response(path)
                 else:
                     body = "File Not Found\n"
                     status = Status(404, "Not Found")

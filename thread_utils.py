@@ -5,7 +5,7 @@ import socket
 import threading
 
 # Project imports
-from message_utils import handle_request
+from message_utils import handle_request, create_503_response
 
 MAX_THREAD_COUNT = 10
 SOCKET_THREADS = []
@@ -54,17 +54,37 @@ def initialize_socket_thread(conn: socket.socket, addr):
     # Lock THREADS_LOCK list before checking capacity and appending thread
     with SOCKET_THREADS_LOCK:
         if len(SOCKET_THREADS) >= MAX_THREAD_COUNT:
-            # threads at capacity, so refuse connection
+            # Threads at capacity, send a 503 response
             try:
-                conn.shutdown(socket.SHUT_RDWR)
-            except OSError:
-                # if socket is closed or not connected, ignore
-                pass
-            try:
-                conn.close()
-            except OSError:
-                pass
-            logger.warning("Thread limit reached, connection refused")
+                response = create_503_response()
+                try:
+                    conn.sendall(response)
+                except (BrokenPipeError, ConnectionResetError, OSError, socket.timeout):
+                    pass
+                try:
+                    conn.shutdown(socket.SHUT_WR)
+                except OSError:
+                    pass
+                try:
+                    # Drain any remaining client data, then close
+                    conn.settimeout(0.2)
+                    while True:
+                        try:
+                            if not conn.recv(1024):
+                                break
+                        except socket.timeout:
+                            break
+                        except OSError:
+                            break
+                finally:
+                    try:
+                        conn.close()
+                    except OSError:
+                        pass
+            finally:
+                logger.warning(
+                    "Thread limit reached, responded 503 Service Unavailable"
+                )
             return
 
         # Thread creation.
@@ -140,14 +160,31 @@ def thread_socket_main(conn: socket.socket, addr):
                 # If the application promised to close the connection, do so immediately
                 # to avoid leaving the client or server waiting for the other side to close.
                 try:
-                    if b"connection: close" in response.lower():
-                        logger.debug("Response asked to close connection for %s", addr)
-                        break
+                    should_close = b"connection: close" in response.lower()
                 except TypeError:
-                    # If response isn't bytes for some reason, ignore and continue
-                    pass
+                    should_close = True
 
-                # prepare for possible pipelined/multiple requests on same connection
+                if should_close:
+                    logger.debug("Response asked to close connection for %s", addr)
+                    # Perform a graceful half-close to avoid RST on clients like ab
+                    try:
+                        conn.shutdown(socket.SHUT_WR)
+                    except OSError:
+                        pass
+
+                    # Drain any remaining client data, then close
+                    conn.settimeout(0.2)
+                    while True:
+                        try:
+                            if not conn.recv(1024):
+                                break
+                        except socket.timeout:
+                            break
+                        except OSError:
+                            break
+                    break
+
+                # could eventually support possible pipelined/multiple requests on same connection
                 request = b""
     finally:
         logger.debug("Thread for %s cleaning up and terminating", addr)
@@ -158,8 +195,6 @@ def thread_socket_main(conn: socket.socket, addr):
                 logger.warning(
                     "Error attempting to remove socket thread: thread not found in active thread list"
                 )
-        # with conn: context manager has closed the socket
-        # with conn: context manager closes the socket
 
     # print the id of the terminated thread
     logger.info(
