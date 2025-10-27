@@ -51,6 +51,16 @@ def get_last_modified_header(filepath):
     last_modified_time = getmtime(filepath)
     return formatdate(timeval=last_modified_time, localtime=False, usegmt=True)
 
+def convert_datetime_to_posix(datetime):
+    """
+    Converts a datetime object to a number signifying POSIX time
+    Args:
+        datetime: datetime object
+    
+    Returns:
+        POSIX time (number)
+    """
+    return parsedate_to_datetime(datetime).timestamp()
 
 def create_200_response(filepath):
     """Create an HTTP response message.
@@ -233,7 +243,7 @@ def handle_request(request):
     #TODO Successful validation : Access cache
     # 304: Not Modified
     if "If-Modified-Since" in headers:
-        last_modified = parsedate_to_datetime(headers["If-Modified-Since"]).timestamp()
+        last_modified = convert_datetime_to_posix(headers["If-Modified-Since"])
 
         # Send 304 if file has not been modified since the time specified
         # i.e. file last modified time is less than or equal to the time in the header
