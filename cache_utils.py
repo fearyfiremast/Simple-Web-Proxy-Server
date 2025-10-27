@@ -73,20 +73,27 @@ class Cache:
     def insert_response(self, response):
         
         # Formats the response into a record
-        record = Record(response)
+        to_insert = Record(response)
 
         with self._lock:
             if len(self._records) > self._max_capacity:
-                '''
-                Look for elements that have expired 
-                -> If some were found, return to normal insert flow
+                expired_records = []
 
-                If none, were found pop the last element
-                -> return to normal flow
-                '''
-            
-            #Normal flow
-            self._records = [record] + self._records
+                # Expunge expired records
+                for record in self._records:
+                    if self._is_expired(record):
+                        expired_records.append(record)
+                
+                # True if an expired record was found
+                if len(expired_records) > 0:
+                    self._remove_records(expired_records)
+
+                # No records to expire. Pop oldest
+                else:
+                    self._records.pop()
+
+            # Element insertion
+            self._records = [to_insert] + self._records
         return
     
 
