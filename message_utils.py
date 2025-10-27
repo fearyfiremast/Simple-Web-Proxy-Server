@@ -152,7 +152,7 @@ def create_404_response():
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
-
+# TODO: Allow the passing in of header arguments as an iteratable object
 def create_response(body, status):
     """Create a generic HTTP response message.
 
