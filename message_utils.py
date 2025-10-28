@@ -6,7 +6,12 @@ import logging
 
 # Project imports
 from cache_utils import Cache
-from header_utils import get_date_header, get_last_modified_header, is_not_modified_since, convert_header_into_dict
+from header_utils import (
+    get_date_header, 
+    get_last_modified_header, 
+    is_not_modified_since, 
+    convert_reqheader_into_dict
+    )
 
 
 # Serve files relative to the repository/module directory (document root)
@@ -189,6 +194,27 @@ def request_well_formed(method, version):
 
     return None
 
+def valid_webserver_response(url):
+    """
+    
+    """
+
+    # print(f"Requested Path: {path}", flush=True)
+
+    # 404: File does not exist
+    if not os.path.exists(url):
+        body = "File Not Found\n"
+        status = Status(404, "Not Found")
+        return create_response(body, status)
+
+    # 403: File is not accessible (e.g., permission denied, outside root directory)
+    if not is_accessable_file(url):
+        body = "403 Forbidden: Access Denied\n"
+        status = Status(403, "Forbidden")
+        return create_response(body, status)
+    
+    return None
+
 def handle_request(request, cache : Cache):
     """Parse the HTTP request and generate the appropriate response.
 
@@ -200,7 +226,6 @@ def handle_request(request, cache : Cache):
     """
 
     # simulate processing delay
-    # sleep(0.01)
 
     request = request.decode("utf-8")  # Decode bytes to string
 
@@ -211,7 +236,7 @@ def handle_request(request, cache : Cache):
     method, path, version = request.split()
 
     # Store header in a dictionary
-    headers = convert_header_into_dict(lines[1:])
+    headers = convert_reqheader_into_dict(lines[1:])
 
     # Returns a response if request is NOT well formed
     if (to_return := request_well_formed(method, version)) is not None:
@@ -226,27 +251,18 @@ def handle_request(request, cache : Cache):
                   again.
     '''
     
-
+    # Cache wants (URL, ETAG, Modifcation_date)
     if (found_request := cache.find_record((path, headers))) is not None:
         # Value was found in cache
         return
+   
     # Resolve path within DOCUMENT_ROOT to prevent directory traversal
     path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
-    # print(f"Requested Path: {path}", flush=True)
-
-    # 404: File does not exist
-    if not os.path.exists(path):
-        body = "File Not Found\n"
-        status = Status(404, "Not Found")
-        return create_response(body, status)
-
-    # 403: File is not accessible (e.g., permission denied, outside root directory)
-    if not is_accessable_file(path):
-        body = "403 Forbidden: Access Denied\n"
-        status = Status(403, "Forbidden")
-        return create_response(body, status)
+    if (error_at_srv := valid_webserver_response(path)) is not None:
+        return error_at_srv
 
     #TODO Successful validation : Access cache
+    # cache wants: content, etag, mod_date, vary
     # 304: Not Modified
     if "If-Modified-Since" in headers:
         # last_modified = parsedate_to_datetime(headers["If-Modified-Since"]).timestamp()
