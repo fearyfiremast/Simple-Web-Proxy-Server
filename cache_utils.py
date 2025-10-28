@@ -1,6 +1,8 @@
 """Module that handles server cache behaviour"""
 import threading
-from message_utils import is_not_modified_since
+
+# Project imports
+from header_utils import is_not_modified_since
 
 class Cache:
     '''

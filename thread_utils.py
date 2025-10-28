@@ -3,10 +3,10 @@
 import logging
 import socket
 import threading
-from cache_utils import Cache
 
 # Project imports
 from message_utils import handle_request, create_503_response
+from cache_utils import Cache
 
 MAX_THREAD_COUNT = 16
 SOCKET_THREADS = []

@@ -1,0 +1,53 @@
+from email.utils import formatdate, parsedate_to_datetime
+from os.path import getmtime
+from time import time
+
+def get_date_header():
+    """Generate a Date header for HTTP response.
+
+    Returns:
+        str: The Date header string.
+    """
+    return formatdate(timeval=time(), localtime=False, usegmt=True)
+
+
+def is_not_modified_since(filepath, ims_header):
+    """Check if the file has been modified since the time specified in the If-Modified-Since header.
+
+    Args:
+        filepath (str): The path to the file.
+        ims_header (str): The value of the If-Modified-Since header.
+
+    Returns:
+        bool: True if the file has been modified since the specified time, False otherwise.
+    """
+    try:
+        ims_time = parsedate_to_datetime(ims_header).timestamp()
+        file_mtime = getmtime(filepath)
+        return file_mtime <= ims_time
+    except (TypeError, ValueError):
+        return True  # If parsing fails, assume modified
+
+
+def get_last_modified_header(filepath):
+    """Generate a Last-Modified header for a given file.
+
+    Args:
+        filepath (str): The path to the file.
+
+    Returns:
+        str: The Last-Modified header string.
+    """
+    last_modified_time = getmtime(filepath)
+    return formatdate(timeval=last_modified_time, localtime=False, usegmt=True)
+
+def convert_datetime_to_posix(datetime):
+    """
+    Converts a datetime object to a number signifying POSIX time
+    Args:
+        datetime: datetime object
+    
+    Returns:
+        POSIX time (number)
+    """
+    return parsedate_to_datetime(datetime).timestamp()

@@ -6,10 +6,9 @@ Runs up to the maximum number of threads defined in thread_utils.py.
 import logging
 import socket
 import sys
-from cache_utils import Cache
-
 # Project imports
 from thread_utils import initialize_socket_thread, logger
+from cache_utils import Cache
 
 
 HOST = "127.0.0.1"
