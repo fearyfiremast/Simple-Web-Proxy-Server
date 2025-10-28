@@ -181,6 +181,52 @@ class Record:
         """
         return self._expires
     
+    def get_etag(self):
+        """
+        Gets the etag
+
+        Returns:
+            (int)
+        """
+        return self._etag
+    
+    
+    def get_last_modified(self):
+        """
+        Gets the date of most recent modification
+
+        Returns:
+            (str)
+        """
+        return self._last_modified
+    
+    def get_vary(self):
+        """
+        Gets the vary
+
+        Returns:
+            (str)
+        """
+        return self._vary
+    
+    def get_content_type(self):
+        """
+        Gets the content type
+
+        Returns:
+            (str)
+        """
+        return self._content_type
+    
+    def get_content(self):
+        """
+        Gets the content
+
+        Returns:
+            (str)
+        """
+        return self._content
+    
 
     def update_expiry_date(self, offset:float=0):
         """ 
