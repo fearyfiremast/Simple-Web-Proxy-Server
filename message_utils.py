@@ -43,8 +43,6 @@ def is_accessable_file(filepath):
     return os.path.isfile(abs_path) and os.access(abs_path, os.R_OK)
 
 
-
-
 def create_200_response(filepath):
     """Create an HTTP response message.
 
@@ -220,8 +218,8 @@ def handle_request(request, cache : Cache):
         headers[key.strip()] = value.strip()  # Store header in a dictionary
 
     # Returns a response if request is NOT well formed
-    if toReturn := request_well_formed(method, version) is not None:
-        return toReturn
+    if (to_return := request_well_formed(method, version)) is not None:
+        return to_return
 
     '''
     TODO: Implement Cache behaviour: 
