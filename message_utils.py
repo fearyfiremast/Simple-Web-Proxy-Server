@@ -46,8 +46,27 @@ def is_accessable_file(filepath):
 
     return os.path.isfile(abs_path) and os.access(abs_path, os.R_OK)
 
+def acquire_resource(filepath):
+    """
+    From the passed in filepath returns a tuple containing the file contents and guessed file type.
+    Args:
+    filepath(str): URL that indicates where to find a requested resource. (should be absolute).
 
-def create_200_response(filepath):
+    Returns:
+    tuple(str, str): tuple[0] contains the content of the file. tuple[1] has the guessed type.
+    """
+    with open(filepath, "rb") as file:
+        body = file.read()
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+
+    content_type = mimetypes.guess_type(filepath)[0] or "text/plain; charset=utf-8"
+    
+    # Some values here are temporary
+    return (body, content_type, get_last_modified_header(filepath))
+
+# response package (content, content_type, last_modified)
+def create_200_response(response_package):
     """Create an HTTP response message.
 
     Args:
@@ -56,28 +75,21 @@ def create_200_response(filepath):
     Returns:
         bytes: A UTF-8 encoded HTTP response message.
     """
-    # Read file content (filepath should be absolute)
-    with open(filepath, "rb") as file:
-        body = file.read()
-    if isinstance(body, str):
-        body = body.encode("utf-8")
-
     # Create response
     status = Status(200, "OK")
-    content_type = mimetypes.guess_type(filepath)[0] or "text/plain; charset=utf-8"
-
+    
     response_line = f"HTTP/1.1 {status.code} {status.text}\r\n"
     headers = (
         f"Date: {get_date_header()}\r\n"
         "Server: Smith-Peters-Web-Server/1.0\r\n"
-        f"Content-Type: {content_type}\r\n"  # Content-Length is the number of bytes
-        f"Content-Length: {len(body)}\r\n"
-        f"Last-Modified: {get_last_modified_header(filepath)}\r\n"
+        f"Content-Type: {response_package[1]}\r\n"  # Content-Length is the number of bytes
+        f"Content-Length: {len(response_package[0])}\r\n"
+        f"Last-Modified: {response_package[2]}\r\n"
         "Connection: close\r\n"
     )
     # Build headers as bytes and concatenate with body bytes
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
-    return header_bytes + body
+    return header_bytes + response_package[0]
 
 
 def create_304_response():
@@ -260,8 +272,6 @@ def handle_request(request, cache : Cache):
     if (error_at_srv := valid_webserver_response(path)) is not None:
         return error_at_srv
 
-    #TODO Successful validation : Access cache
-    # cache wants: content, etag, mod_date, vary
     # 304: Not Modified
     if "If-Modified-Since" in headers:
         # last_modified = parsedate_to_datetime(headers["If-Modified-Since"]).timestamp()
@@ -277,7 +287,12 @@ def handle_request(request, cache : Cache):
             if method == "GET":  # Currently only handling GET requests
                 if os.path.isfile(path):
                     # 200 OK
-                    return create_200_response(path)
+
+                    #TODO Successful validation : Access cache
+                    # cache wants: content, etag, mod_date, vary
+                    #cache.insert_response(())
+                    temp = acquire_resource(path)
+                    return create_200_response(temp)
                 else:
                     body = "File Not Found\n"
                     status = Status(404, "Not Found")
