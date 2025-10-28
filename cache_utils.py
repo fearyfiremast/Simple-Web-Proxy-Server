@@ -1,6 +1,6 @@
 """Module that handles server cache behaviour"""
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Project imports
 from header_utils import (
@@ -127,15 +127,32 @@ class Record:
     def __init__(self, url):
         retrieved = acquire_resource(url)
         
+        # Setting up fields
         self._content = retrieved[0]
         self._content_type = retrieved[1]
         self._last_modified = get_last_modified_header(url)
-        #self._etag = compute_etag()
+        self._vary = "Accept-Encoding"
+        self._etag = compute_etag(self._etag, self._vary)
+        self.update_expiry_date()
+
         return
 
 
-    def update_expiry_date(self):
-        return
+    def update_expiry_date(self, offset:float=0):
+        """ 
+        updates the planned expiry of a record by a minimum of 2 minutes.
+
+        Args:
+        offset (float): default value is 0. increases the number of seconds until the
+                        planned expiry date.
+
+        """
+        offset = max(offset, 0) # Clamps offset
+
+        expirydate = datetime()
+        expirydate.now()
+        expirydate = expirydate + timedelta(second=(2+offset))
+        self._expires = get_date_header(expirydate)
 
     def is_match(self, dictionary) -> bool:
         """Checks if the record has the resource by values in the key"""
