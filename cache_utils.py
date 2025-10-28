@@ -90,10 +90,7 @@ class Cache:
         # returns data in a form that calling function can understand
         return self._record_to_response(to_return)
     
-    def insert_response(self, response):
-        
-        # Formats the response into a record
-        to_insert = Record(response)
+    def insert_response(self, response):   
 
         with self._lock:
             if len(self._records) > self._max_capacity:
@@ -112,8 +109,8 @@ class Cache:
                 else:
                     self._records.pop()
 
-            # Element insertion
-            self._records = [to_insert] + self._records
+            # Element insertion and formats the response into a record
+            self._records = [Record(response)] + self._records
         return
     
 class Record:
