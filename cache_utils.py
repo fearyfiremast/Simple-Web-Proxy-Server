@@ -194,7 +194,7 @@ class Record:
         offset = max(offset, 0) # Clamps offset
 
         expirydate = datetime.now()
-        expirydate = expirydate + timedelta(second=(2+offset))
+        expirydate = expirydate + timedelta(seconds=(2+offset))
         self._expires = get_date_header(expirydate)
 
 

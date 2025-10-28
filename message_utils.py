@@ -270,7 +270,7 @@ def handle_request(request, cache : Cache):
                     # 200 OK
 
                     #TODO Successful validation : Access cache
-                    #to_insert = Record(path) 
+                    to_insert = Record(path) 
                     #cache.insert_response(to_insert)
                     to_insert = acquire_resource(path)
                     return create_200_response(to_insert)
