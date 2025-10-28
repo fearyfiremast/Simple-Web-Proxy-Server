@@ -204,6 +204,8 @@ def handle_request(request, cache : Cache):
 
     request = request.decode("utf-8")  # Decode bytes to string
 
+    sleep(0.005)  # Simulate processing delay
+
     # print(f"Full Request:\n{request}", flush=True)
 
     lines = request.split("\r\n")  # Split request into lines
