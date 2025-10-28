@@ -64,7 +64,7 @@ def initialize_socket_thread(conn: socket.socket, addr):
     """
     try:
         CONNECTION_QUEUE.put_nowait((conn, addr))
-        logger.debug(
+        logger.warning(
             "Enqueued connection from %s (queue size=%d)",
             addr,
             CONNECTION_QUEUE.qsize(),

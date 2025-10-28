@@ -200,11 +200,9 @@ def handle_request(request, cache : Cache):
     """
 
     # simulate processing delay
-    # sleep(0.01)
+    sleep(0.01)
 
     request = request.decode("utf-8")  # Decode bytes to string
-
-    sleep(0.005)  # Simulate processing delay
 
     # print(f"Full Request:\n{request}", flush=True)
 
