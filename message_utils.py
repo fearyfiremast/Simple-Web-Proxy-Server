@@ -1,16 +1,15 @@
 """A module for handling HTTP message creation and parsing."""
 
-import mimetypes
 import os
 import logging
 
 # Project imports
-from cache_utils import Cache
+from cache_utils import Cache, Record
 from header_utils import (
     get_date_header, 
-    get_last_modified_header, 
     is_not_modified_since, 
-    convert_reqheader_into_dict
+    convert_reqheader_into_dict,
+    acquire_resource
     )
 
 # Serve files relative to the repository/module directory (document root)
@@ -46,24 +45,6 @@ def is_accessable_file(filepath):
 
     return os.path.isfile(abs_path) and os.access(abs_path, os.R_OK)
 
-def acquire_resource(filepath):
-    """
-    From the passed in filepath returns a tuple containing the file contents and guessed file type.
-    Args:
-    filepath(str): URL that indicates where to find a requested resource. (should be absolute).
-
-    Returns:
-    tuple(str, str): tuple[0] contains the content of the file. tuple[1] has the guessed type.
-    """
-    with open(filepath, "rb") as file:
-        body = file.read()
-    if isinstance(body, str):
-        body = body.encode("utf-8")
-
-    content_type = mimetypes.guess_type(filepath)[0] or "text/plain; charset=utf-8"
-    
-    # Some values here are temporary
-    return (body, content_type, get_last_modified_header(filepath))
 
 # response package (content, content_type, last_modified)
 def create_200_response(response_package):
@@ -289,10 +270,10 @@ def handle_request(request, cache : Cache):
                     # 200 OK
 
                     #TODO Successful validation : Access cache
-                    # cache wants: content, etag, mod_date, vary
-                    #cache.insert_response(())
-                    temp = acquire_resource(path)
-                    return create_200_response(temp)
+                    to_insert = Record(path) 
+                    #cache.insert_response(to_insert)
+                    to_insert = acquire_resource(path)
+                    return create_200_response(to_insert)
                 else:
                     body = "File Not Found\n"
                     status = Status(404, "Not Found")
