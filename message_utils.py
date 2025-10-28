@@ -8,8 +8,7 @@ from cache_utils import Cache, Record
 from header_utils import (
     get_date_header, 
     is_not_modified_since, 
-    convert_reqheader_into_dict,
-    acquire_resource
+    convert_reqheader_into_dict
     )
 
 # Serve files relative to the repository/module directory (document root)
@@ -47,7 +46,7 @@ def is_accessable_file(filepath):
 
 
 # response package (content, content_type, last_modified)
-def create_200_response(response_package):
+def create_200_response(response : Record):
     """Create an HTTP response message.
 
     Args:
@@ -58,19 +57,19 @@ def create_200_response(response_package):
     """
     # Create response
     status = Status(200, "OK")
-    
+    body = response.get_content() # pre encoded to UTF-8 by acquire_resources in header_util
     response_line = f"HTTP/1.1 {status.code} {status.text}\r\n"
     headers = (
         f"Date: {get_date_header()}\r\n"
         "Server: Smith-Peters-Web-Server/1.0\r\n"
-        f"Content-Type: {response_package[1]}\r\n"  # Content-Length is the number of bytes
-        f"Content-Length: {len(response_package[0])}\r\n"
-        f"Last-Modified: {response_package[2]}\r\n"
+        f"Content-Type: {body}\r\n"  # Content-Length is the number of bytes
+        f"Content-Length: {len(body)}\r\n"
+        f"Last-Modified: {response.get_last_modified}\r\n"
         "Connection: close\r\n"
     )
     # Build headers as bytes and concatenate with body bytes
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
-    return header_bytes + response_package[0]
+    return header_bytes + body
 
 
 def create_304_response():
@@ -268,12 +267,13 @@ def handle_request(request, cache : Cache):
             if method == "GET":  # Currently only handling GET requests
                 if os.path.isfile(path):
                     # 200 OK
-
-                    #TODO Successful validation : Access cache
                     to_insert = Record(path) 
+
+                    # must create the response before inserting it into cache as after insertion
+                    # it may be touched by other threads during response creation (if shallow copy)
+                    to_send = create_200_response(to_insert)  
                     #cache.insert_response(to_insert)
-                    to_insert = acquire_resource(path)
-                    return create_200_response(to_insert)
+                    return to_send
                 else:
                     body = "File Not Found\n"
                     status = Status(404, "Not Found")
