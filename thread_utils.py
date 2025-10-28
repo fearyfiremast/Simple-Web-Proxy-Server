@@ -1,17 +1,21 @@
 """A module to manage threading for the HTTP server."""
 
+import logging
 import socket
 import threading
 from cache_utils import Cache
 
 # Project imports
-from message_utils import handle_request
+from message_utils import handle_request, create_503_response
 
-MAX_THREAD_COUNT = 1
+MAX_THREAD_COUNT = 16
 SOCKET_THREADS = []
 SOCKET_THREADS_LOCK = threading.Lock()
 
-# TODO: Consider creating a custom thread class
+CONNECTION_TIMEOUT = None  # seconds
+
+
+logger = logging.getLogger(__name__)
 
 
 def initialize_socket_thread(conn: socket.socket, addr, cache : Cache):
@@ -24,24 +28,53 @@ def initialize_socket_thread(conn: socket.socket, addr, cache : Cache):
         conn (socket.socket): A newly accepted socket object
         addr: tuple that contains the clients ip and port number
     """
-    print("server")
     # Lock THREADS_LOCK list before checking capacity and appending thread
     with SOCKET_THREADS_LOCK:
         if len(SOCKET_THREADS) >= MAX_THREAD_COUNT:
-            with conn:
-                # threads at capacity
-                conn.shutdown(socket.SHUT_RDWR)
-                conn.close()
-                print("Thread limit reached")
-                return
+            # Threads at capacity, send a 503 response
+            try:
+                response = create_503_response()
+                try:
+                    conn.sendall(response)
+                except (BrokenPipeError, ConnectionResetError, OSError, socket.timeout):
+                    pass
+                try:
+                    conn.shutdown(socket.SHUT_WR)
+                except OSError:
+                    pass
+                try:
+                    # Drain any remaining client data, then close
+                    conn.settimeout(0.2)
+                    while True:
+                        try:
+                            if not conn.recv(1024):
+                                break
+                        except socket.timeout:
+                            break
+                        except OSError:
+                            break
+                finally:
+                    try:
+                        conn.close()
+                    except OSError:
+                        pass
+            finally:
+                logger.warning(
+                    "Thread limit reached, responded 503 Service Unavailable"
+                )
+            return
 
         # Thread creation.
         t = threading.Thread(target=thread_socket_main, args=(conn, addr, cache))
         SOCKET_THREADS.append(t)
 
     # Start the thread outside of the lock
+    logger.debug("Starting new thread for connection from %s", addr)
     t.start()
-    print(f"number of active threads: {len(SOCKET_THREADS)}", flush=True)
+    # print the id of the started thread
+    logger.debug(
+        "Thread (id: %s) started. Active threads: %s", t.ident, len(SOCKET_THREADS)
+    )
     return
 
 
@@ -52,33 +85,98 @@ def thread_socket_main(conn: socket.socket, addr, cache : Cache):
         conn (socket.socket): A newly accepted socket object
         addr: tuple that contains the clients ip and port number
     """
-    print(f"thread_socket_main: Connected by {addr}", flush=True)
-    with conn:
-        request = b""
-        while True:
-            # Read request data until the end of headers
-            while b"\r\n\r\n" not in request:
-                data = conn.recv(1024)
-                if not data:
-                    break
-                request += data
-            if not request:
-                break
-            response = handle_request(request, cache)
-            conn.sendall(response)
-            request = b""
+    logger.info(
+        "Started thread (id: %s) handling connection from %s",
+        threading.current_thread().ident,
+        addr,
+    )
+    # Using try, finally block to ensure the thread is always removed
+    # from SOCKET_THREADS exactly once on exit.
+    try:
+        with conn:
+            # protect recv/send from blocking forever under load
+            try:
+                conn.settimeout(CONNECTION_TIMEOUT)
+            except OSError:
+                # ignore if setting timeout fails for any reason
+                pass
 
-        # thread termination process occurs after break
-        # Lock SOCKET_THREADS list, remove thread from list
+            request = b""
+            while True:
+                # Read request data until the end of headers
+                while b"\r\n\r\n" not in request:
+                    try:
+                        data = conn.recv(1024)
+                    except socket.timeout:
+                        logger.debug(
+                            "Receive timeout from %s, closing connection", addr
+                        )
+                        data = b""
+                    except OSError as e:
+                        logger.debug("Recv failed for %s: %s", addr, e)
+                        data = b""
+
+                    if not data:
+                        break
+                    request += data
+                if not request:
+                    break
+
+                response = handle_request(request, cache)
+                try:
+                    conn.sendall(response)
+                except (
+                    BrokenPipeError,
+                    ConnectionResetError,
+                    OSError,
+                    socket.timeout,
+                ) as e:
+                    logger.debug("Send failed for %s: %s", addr, e)
+                    break
+
+                # If the application promised to close the connection, do so immediately
+                # to avoid leaving the client or server waiting for the other side to close.
+                try:
+                    should_close = b"connection: close" in response.lower()
+                except TypeError:
+                    should_close = True
+
+                if should_close:
+                    logger.debug("Response asked to close connection for %s", addr)
+                    # Perform a graceful half-close to avoid RST on clients like ab
+                    try:
+                        conn.shutdown(socket.SHUT_WR)
+                    except OSError:
+                        pass
+
+                    # Drain any remaining client data, then close
+                    conn.settimeout(0.2)
+                    while True:
+                        try:
+                            if not conn.recv(1024):
+                                break
+                        except socket.timeout:
+                            break
+                        except OSError:
+                            break
+                    break
+
+                # could eventually support possible pipelined/multiple requests on same connection
+                request = b""
+    finally:
+        logger.debug("Thread for %s cleaning up and terminating", addr)
         with SOCKET_THREADS_LOCK:
             try:
                 SOCKET_THREADS.remove(threading.current_thread())
             except ValueError:
-                print("Thread not found in active thread list", flush=True)
-        # with conn: context manager closes the socket
-    print(
-        f"thread_socket_main: Connection closed. Number of active threads: {len(SOCKET_THREADS)}",
-        flush=True,
+                logger.warning(
+                    "Error attempting to remove socket thread: thread not found in active thread list"
+                )
+
+    # print the id of the terminated thread
+    logger.info(
+        "Terminated thread (id: %s). Number of active threads: %s",
+        threading.current_thread().ident,
+        len(SOCKET_THREADS),
     )
-    print("thread_socket_main: Done", flush=True)
     return

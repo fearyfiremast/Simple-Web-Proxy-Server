@@ -6,6 +6,13 @@ import os
 from os.path import getmtime
 from time import time
 from cache_utils import Cache
+from time import sleep, time
+import logging
+
+
+# Serve files relative to the repository/module directory (document root)
+DOCUMENT_ROOT = os.path.dirname(os.path.abspath(__file__))
+logger = logging.getLogger(__name__)
 
 
 class Status:
@@ -25,10 +32,16 @@ def is_accessable_file(filepath):
     Returns:
         bool: True if the file exists and is accessible, False otherwise.
     """
-    if not os.path.abspath(filepath).startswith(os.getcwd()):
+    # Only allow files inside the document root
+    try:
+        abs_path = os.path.abspath(filepath)
+    except Exception:
         return False
-    else:
-        return os.path.isfile(filepath) and os.access(filepath, os.R_OK)
+
+    if not abs_path.startswith(DOCUMENT_ROOT):
+        return False
+
+    return os.path.isfile(abs_path) and os.access(abs_path, os.R_OK)
 
 
 def get_date_header():
@@ -90,7 +103,7 @@ def create_200_response(filepath):
     Returns:
         bytes: A UTF-8 encoded HTTP response message.
     """
-    # Read file content
+    # Read file content (filepath should be absolute)
     with open(filepath, "rb") as file:
         body = file.read()
     if isinstance(body, str):
@@ -129,6 +142,25 @@ def create_304_response():
     )
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes
+
+
+def create_503_response():
+    """Create a 503 Service Unavailable HTTP response message.
+
+    Returns:
+        bytes: A UTF-8 encoded HTTP response message.
+    """
+    body = "Service Unavailable\n".encode("utf-8")
+    response_line = "HTTP/1.1 503 Service Unavailable\r\n"
+    headers = (
+        f"Date: {get_date_header()}\r\n"
+        "Server: Smith-Peters-Web-Server/1.0\r\n"
+        "Content-Type: text/plain; charset=utf-8\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "Connection: close\r\n"
+    )
+    header_bytes = (response_line + headers + "\r\n").encode("utf-8")
+    return header_bytes + body
 
 
 def create_404_response():
@@ -194,13 +226,14 @@ def request_well_formed(method, version):
         otherwise, returns None.
     """
     supported_methods = ["GET"] # Methods supported by the proxy server
+    supported_versions = ["HTTP/1.0", "HTTP/1.1"]
 
     if method not in supported_methods:
         body = "Bad Request\n"
         status = Status(400, "Bad Request")
         return create_response(body, status)
 
-    if version != "HTTP/1.1":
+    if version not in supported_versions:
         body = "HTTP Version Not Supported\n"
         status = Status(505, "HTTP Version Not Supported")
         return create_response(body, status)
@@ -216,6 +249,10 @@ def handle_request(request, cache : Cache):
     Returns:
         bytes: The UTF-8 encoded HTTP response message.
     """
+
+    # simulate processing delay
+    # sleep(0.01)
+
     request = request.decode("utf-8")  # Decode bytes to string
 
     # print(f"Full Request:\n{request}", flush=True)
@@ -244,8 +281,9 @@ def handle_request(request, cache : Cache):
                   again.
     '''
 
-    path = os.path.join(".", path.lstrip("/"))  # Prevent directory traversal
-    # print(f"Requested Path: {path.lstrip("/")}", flush=True)
+    # Resolve path within DOCUMENT_ROOT to prevent directory traversal
+    path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
+    # print(f"Requested Path: {path}", flush=True)
 
     # 404: File does not exist
     if not os.path.exists(path):
@@ -273,10 +311,9 @@ def handle_request(request, cache : Cache):
         parts = request.split()
         if len(parts) >= 2:
             if method == "GET":  # Currently only handling GET requests
-                filepath = path.lstrip("/")
-                if os.path.isfile(filepath):
+                if os.path.isfile(path):
                     # 200 OK
-                    return create_200_response(filepath)
+                    return create_200_response(path)
                 else:
                     body = "File Not Found\n"
                     status = Status(404, "Not Found")
