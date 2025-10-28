@@ -1,8 +1,15 @@
 """Module that handles server cache behaviour"""
 import threading
+from datetime import datetime
 
 # Project imports
-from header_utils import (is_not_modified_since, CACHE_REQ_FIELDS)
+from header_utils import (
+    is_not_modified_since, 
+    get_date_header,
+    get_last_modified_header,
+    compute_etag,
+    acquire_resource
+    )
 
 class Cache:
     '''
@@ -109,27 +116,26 @@ class Cache:
             self._records = [to_insert] + self._records
         return
     
-
 class Record:
     _etag = None
     _last_modified = None
     _vary = None
     _expires = None
+    _content_type = None
     _content = None
-    _reqresponse_map = {}
 
-    def __init__(self, response):
+    def __init__(self, url):
+        retrieved = acquire_resource(url)
         
+        self._content = retrieved[0]
+        self._content_type = retrieved[1]
+        self._last_modified = get_last_modified_header(url)
+        #self._etag = compute_etag()
         return
+
 
     def update_expiry_date(self):
         return
-    
-    def get_request_form(self):
-        """
-        gets the important information for
-        """
-        return (self._last_modified, self._content)
 
     def is_match(self, dictionary) -> bool:
         """Checks if the record has the resource by values in the key"""
