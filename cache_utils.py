@@ -72,7 +72,7 @@ class Cache:
             key dict: contains the request header fields
 
         Returns:
-
+            A record if there was a match. If not then returns None
         """
 
         to_return = None
