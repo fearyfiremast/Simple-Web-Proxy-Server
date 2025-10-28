@@ -6,6 +6,7 @@ import threading
 
 # Project imports
 from message_utils import handle_request, create_503_response
+from cache_utils import Cache
 
 MAX_THREAD_COUNT = 16
 SOCKET_THREADS = []
@@ -17,7 +18,7 @@ CONNECTION_TIMEOUT = None  # seconds
 logger = logging.getLogger(__name__)
 
 
-def initialize_socket_thread(conn: socket.socket, addr):
+def initialize_socket_thread(conn: socket.socket, addr, cache : Cache):
     """
     Function is repsonsible for dispatching threads. If the number of active threads is less than
     MAX_THREAD_COUNT then the thread is added to an array started.
@@ -64,7 +65,7 @@ def initialize_socket_thread(conn: socket.socket, addr):
             return
 
         # Thread creation.
-        t = threading.Thread(target=thread_socket_main, args=(conn, addr))
+        t = threading.Thread(target=thread_socket_main, args=(conn, addr, cache))
         SOCKET_THREADS.append(t)
 
     # Start the thread outside of the lock
@@ -77,7 +78,7 @@ def initialize_socket_thread(conn: socket.socket, addr):
     return
 
 
-def thread_socket_main(conn: socket.socket, addr):
+def thread_socket_main(conn: socket.socket, addr, cache : Cache):
     """Function is spun up for each active thread. Handles HTTP server send and receive.\n
 
     Args:
@@ -121,7 +122,7 @@ def thread_socket_main(conn: socket.socket, addr):
                 if not request:
                     break
 
-                response = handle_request(request)
+                response = handle_request(request, cache)
                 try:
                     conn.sendall(response)
                 except (

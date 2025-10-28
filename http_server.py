@@ -6,9 +6,9 @@ Runs up to the maximum number of threads defined in thread_utils.py.
 import logging
 import socket
 import sys
-
 # Project imports
 from thread_utils import initialize_socket_thread, logger
+from cache_utils import Cache
 
 
 HOST = "127.0.0.1"
@@ -45,6 +45,8 @@ logging.basicConfig(level=logging.INFO, handlers=[handler])
 def start_server():
     """The main server loop that listens for incoming connections and handles requests."""
 
+    cache = Cache()
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.bind((HOST, PORT))
@@ -55,7 +57,7 @@ def start_server():
             while True:  # Loop forever
                 logger.debug("Waiting for connection")
                 conn, addr = server_socket.accept()  # Accept a new connection
-                initialize_socket_thread(conn, addr)
+                initialize_socket_thread(conn, addr, cache)
         except KeyboardInterrupt:
             logger.info("Server is shutting down due to keyboard interrupt")
         finally:

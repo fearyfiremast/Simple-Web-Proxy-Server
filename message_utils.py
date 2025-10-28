@@ -1,11 +1,12 @@
 """A module for handling HTTP message creation and parsing."""
 
-from email.utils import formatdate, parsedate_to_datetime
 import mimetypes
 import os
-from os.path import getmtime
-from time import sleep, time
 import logging
+
+# Project imports
+from cache_utils import Cache
+from header_utils import get_date_header, get_last_modified_header, is_not_modified_since
 
 
 # Serve files relative to the repository/module directory (document root)
@@ -40,46 +41,6 @@ def is_accessable_file(filepath):
         return False
 
     return os.path.isfile(abs_path) and os.access(abs_path, os.R_OK)
-
-
-def get_date_header():
-    """Generate a Date header for HTTP response.
-
-    Returns:
-        str: The Date header string.
-    """
-    return formatdate(timeval=time(), localtime=False, usegmt=True)
-
-
-def is_not_modified_since(filepath, ims_header):
-    """Check if the file has been modified since the time specified in the If-Modified-Since header.
-
-    Args:
-        filepath (str): The path to the file.
-        ims_header (str): The value of the If-Modified-Since header.
-
-    Returns:
-        bool: True if the file has been modified since the specified time, False otherwise.
-    """
-    try:
-        ims_time = parsedate_to_datetime(ims_header).timestamp()
-        file_mtime = getmtime(filepath)
-        return file_mtime <= ims_time
-    except (TypeError, ValueError):
-        return True  # If parsing fails, assume modified
-
-
-def get_last_modified_header(filepath):
-    """Generate a Last-Modified header for a given file.
-
-    Args:
-        filepath (str): The path to the file.
-
-    Returns:
-        str: The Last-Modified header string.
-    """
-    last_modified_time = getmtime(filepath)
-    return formatdate(timeval=last_modified_time, localtime=False, usegmt=True)
 
 
 def create_200_response(filepath):
@@ -172,7 +133,7 @@ def create_404_response():
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
-
+# TODO: Allow the passing in of header arguments as an iteratable object
 def create_response(body, status):
     """Create a generic HTTP response message.
 
@@ -197,8 +158,38 @@ def create_response(body, status):
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
+def request_well_formed(method, version):
+    """
+    Checks the request header for the correct version and if it calling a supported method by
+    the proxy server.
 
-def handle_request(request):
+    Args: 
+        method (str): The method contained within the request
+        version (str): The version of the http request (formated as "HTTP/x.x")
+
+    Returns:
+        If either the requests method is unsupported returns a code 400 response.
+        If the request method has a supported method but an unsupported version of HTTP
+        returns a 505 response
+
+        otherwise, returns None.
+    """
+    supported_methods = ["GET"] # Methods supported by the proxy server
+    supported_versions = ["HTTP/1.0", "HTTP/1.1"]
+
+    if method not in supported_methods:
+        body = "Bad Request\n"
+        status = Status(400, "Bad Request")
+        return create_response(body, status)
+
+    if version not in supported_versions:
+        body = "HTTP Version Not Supported\n"
+        status = Status(505, "HTTP Version Not Supported")
+        return create_response(body, status)
+
+    return None
+
+def handle_request(request, cache : Cache):
     """Parse the HTTP request and generate the appropriate response.
 
     Args:
@@ -226,12 +217,18 @@ def handle_request(request):
         key, value = line.split(":", 1)
         headers[key.strip()] = value.strip()  # Store header in a dictionary
 
-    if version not in ["HTTP/1.0", "HTTP/1.1"]:
-        body = (
-            "HTTP Version Not Supported.\nOnly HTTP/1.0 and HTTP/1.1 are supported.\n"
-        )
-        status = Status(505, "HTTP Version Not Supported")
-        return create_response(body, status)
+    # Returns a response if request is NOT well formed
+    if (to_return := request_well_formed(method, version)) is not None:
+        return to_return
+
+    '''
+    TODO: Implement Cache behaviour: 
+    At this point the system knows the request is structurally sound.
+    Enters cache -> If the cache finds the resource determines if code 304 or 200 is appropriate.
+    Cache Miss -> Attempts to acquires resource from 'Web Server' May result in a 403, 404 code.
+                  If the resource is successfully acquired the 304 or 200 procedure is gone through
+                  again.
+    '''
 
     # Resolve path within DOCUMENT_ROOT to prevent directory traversal
     path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
@@ -249,6 +246,7 @@ def handle_request(request):
         status = Status(403, "Forbidden")
         return create_response(body, status)
 
+    #TODO Successful validation : Access cache
     # 304: Not Modified
     if "If-Modified-Since" in headers:
         # last_modified = parsedate_to_datetime(headers["If-Modified-Since"]).timestamp()
