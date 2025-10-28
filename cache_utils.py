@@ -35,6 +35,9 @@ class Cache:
         Returns:
             (bool): True if it has expired, false otherwise
         """
+        if type(record) is not Record:
+            print("_is_expired: Passed in value is not record. Exiting")
+            return
         
         expiry = record.get_expiry()
 
@@ -53,6 +56,9 @@ class Cache:
             array (list): contains a list of items that are also in the _records list.
                           must be iterable.
         """
+        if len(array) < 1:
+            return
+        
         for item in array:
             self._records.remove(item)
 
@@ -73,6 +79,7 @@ class Cache:
         expired_records = []
 
         with self._lock:
+            # Early exit
             if len(self._records) == 0:
                 return None
             
@@ -95,18 +102,29 @@ class Cache:
             self._remove_records(expired_records)
  
         # returns data in a form that calling function can understand
-        return self._record_to_response(to_return)
+        return to_return
     
-    def insert_response(self, response):   
+    
+    def insert_response(self, record):   
+        """
+        Inserts an record object into the cache for later retrieval.
+        If the cache is full removes all expired records or oldest record.
+
+        Args:
+            record (Record): the record to be inserted
+        """
+        if type(record) is not Record:
+            print("insert_response: Passed in value is not record. Exiting")
+            return
 
         with self._lock:
             if len(self._records) > self._max_capacity:
                 expired_records = []
 
                 # Expunge expired records
-                for record in self._records:
-                    if self._is_expired(record):
-                        expired_records.append(record)
+                for item in self._records:
+                    if self._is_expired(item):
+                        expired_records.append(item)
                 
                 # True if an expired record was found
                 if len(expired_records) > 0:
@@ -117,7 +135,7 @@ class Cache:
                     self._records.pop()
 
             # Element insertion and formats the response into a record
-            self._records = [Record(response)] + self._records
+            self._records = [record] + self._records
         return
     
 class Record:
