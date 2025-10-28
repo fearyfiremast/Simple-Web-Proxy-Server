@@ -13,7 +13,6 @@ from header_utils import (
     convert_reqheader_into_dict
     )
 
-
 # Serve files relative to the repository/module directory (document root)
 DOCUMENT_ROOT = os.path.dirname(os.path.abspath(__file__))
 logger = logging.getLogger(__name__)
@@ -252,7 +251,7 @@ def handle_request(request, cache : Cache):
     '''
     
     # Cache wants (URL, ETAG, Modifcation_date)
-    if (found_request := cache.find_record((path, headers))) is not None:
+    if (found_request := cache.find_record(headers)) is not None:
         # Value was found in cache
         return
    
