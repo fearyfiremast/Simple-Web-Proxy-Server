@@ -227,7 +227,9 @@ def handle_request(request):
         headers[key.strip()] = value.strip()  # Store header in a dictionary
 
     if version not in ["HTTP/1.0", "HTTP/1.1"]:
-        body = "HTTP Version Not Supported\n"
+        body = (
+            "HTTP Version Not Supported.\nOnly HTTP/1.0 and HTTP/1.1 are supported.\n"
+        )
         status = Status(505, "HTTP Version Not Supported")
         return create_response(body, status)
 

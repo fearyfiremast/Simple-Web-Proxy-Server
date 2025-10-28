@@ -11,6 +11,8 @@ MAX_THREAD_COUNT = 16
 SOCKET_THREADS = []
 SOCKET_THREADS_LOCK = threading.Lock()
 
+CONNECTION_TIMEOUT = None  # seconds
+
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +95,7 @@ def thread_socket_main(conn: socket.socket, addr):
         with conn:
             # protect recv/send from blocking forever under load
             try:
-                conn.settimeout(5.0)
+                conn.settimeout(CONNECTION_TIMEOUT)
             except OSError:
                 # ignore if setting timeout fails for any reason
                 pass

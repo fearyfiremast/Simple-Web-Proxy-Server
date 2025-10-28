@@ -249,8 +249,6 @@ class TestPart1(unittest.TestCase):
         result = s.recv(4096).decode("utf-8")
         s.close()
 
-        print("RESULT:", result)
-
         status_line, headers, body = parse_response(result)
 
         append_report(
