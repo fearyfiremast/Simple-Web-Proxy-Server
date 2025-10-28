@@ -12,6 +12,7 @@ import threading
 from queue import Queue, Full, Empty
 
 # Project imports
+from cache_utils import Cache
 from message_utils import handle_request, create_503_response
 
 # Configuration
@@ -56,14 +57,14 @@ def stop_worker_pool():
     logger.info("Worker pool stopped")
 
 
-def initialize_socket_thread(conn: socket.socket, addr):
+def initialize_socket_thread(conn: socket.socket, addr, cache: Cache):
     """Enqueue a newly accepted connection for processing by the worker pool.
 
     If the queue is full, reply with a 503 Service Unavailable gracefully and
     close the connection to avoid resets on the client side.
     """
     try:
-        CONNECTION_QUEUE.put_nowait((conn, addr))
+        CONNECTION_QUEUE.put_nowait((conn, addr, cache))
         logger.warning(
             "Enqueued connection from %s (queue size=%d)",
             addr,
@@ -198,8 +199,8 @@ def _worker_main():
         if item is None:
             CONNECTION_QUEUE.task_done()
             break
-        conn, addr = item
+        conn, addr, cache = item
         try:
-            thread_socket_main(conn, addr)
+            thread_socket_main(conn, addr, cache)
         finally:
             CONNECTION_QUEUE.task_done()

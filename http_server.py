@@ -8,13 +8,13 @@ import socket
 import sys
 
 # Project imports
+from cache_utils import Cache
 from thread_utils import (
     initialize_socket_thread,
     logger,
     start_worker_pool,
     stop_worker_pool,
 )
-from cache_utils import Cache
 
 
 HOST = "127.0.0.1"
