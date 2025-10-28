@@ -51,3 +51,14 @@ def convert_datetime_to_posix(datetime):
         POSIX time (number)
     """
     return parsedate_to_datetime(datetime).timestamp()
+
+def convert_header_into_dict(to_convert : list):
+    to_return = {}
+    for line in to_convert:
+        if line == "":
+            break
+
+        key, value = line.split(":", 1)
+        to_return[key.strip()] = value.strip()
+
+    return to_return

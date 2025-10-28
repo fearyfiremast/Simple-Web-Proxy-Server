@@ -47,7 +47,14 @@ class Cache:
     def find_record(self, key):
         """
         Searches cache data structure for a record with matching key as attribute.
+
+        Args:
+            key (str, dict): A tuple contain the resource URL as well as a Dict of the header fields
+
+        Returns:
+
         """
+        
         to_return = None
         expired_records = []
 

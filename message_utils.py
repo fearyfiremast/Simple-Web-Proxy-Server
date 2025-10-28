@@ -6,7 +6,7 @@ import logging
 
 # Project imports
 from cache_utils import Cache
-from header_utils import get_date_header, get_last_modified_header, is_not_modified_since
+from header_utils import get_date_header, get_last_modified_header, is_not_modified_since, convert_header_into_dict
 
 
 # Serve files relative to the repository/module directory (document root)
@@ -210,12 +210,8 @@ def handle_request(request, cache : Cache):
     request = lines[0]  # First line is the request line
     method, path, version = request.split()
 
-    headers = {}
-    for line in lines[1:]:
-        if line == "":
-            break
-        key, value = line.split(":", 1)
-        headers[key.strip()] = value.strip()  # Store header in a dictionary
+    # Store header in a dictionary
+    headers = convert_header_into_dict(lines[1:])
 
     # Returns a response if request is NOT well formed
     if (to_return := request_well_formed(method, version)) is not None:
@@ -229,7 +225,11 @@ def handle_request(request, cache : Cache):
                   If the resource is successfully acquired the 304 or 200 procedure is gone through
                   again.
     '''
+    
 
+    if (found_request := cache.find_record((path, headers))) is not None:
+        # Value was found in cache
+        return
     # Resolve path within DOCUMENT_ROOT to prevent directory traversal
     path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
     # print(f"Requested Path: {path}", flush=True)
