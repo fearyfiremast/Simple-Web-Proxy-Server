@@ -7,6 +7,7 @@ CACHE_REQ_FIELDS = ["If-None-Match", "If-Modified-Since", "Vary"]
 
 def get_date_header(date:datetime=None) -> str:
     """Generate a Date header for HTTP response.
+    
     Args:
         date(datetime): is None by default. Otherwise function will get the posix time of the
         object and return it as a formatted date.
@@ -20,6 +21,19 @@ def get_date_header(date:datetime=None) -> str:
         date = date.timestamp()
 
     return formatdate(timeval=date, localtime=False, usegmt=True)
+
+def compute_etag(content, vary):
+    """
+    computes the etag of a request.
+    
+    Args:
+        content: the main payload of the request
+        vary: the vary header of a request
+
+    Returns:
+        (int): the used etag
+    """
+    return hash((content, vary))
 
 
 def is_not_modified_since(filepath, ims_header):
