@@ -64,9 +64,13 @@ def create_200_response(response : Record):
         "Server: Smith-Peters-Web-Server/1.0\r\n"
         f"Content-Type: {body}\r\n"  # Content-Length is the number of bytes
         f"Content-Length: {len(body)}\r\n"
-        f"Last-Modified: {response.get_last_modified}\r\n"
+        "Cache-Control: 'max-age=3600'\r\n"
+        f"ETag: '{response.get_etag()}'\r\n"
+        f"Last-Modified: {response.get_last_modified()}\r\n"
+        f"Vary: {response.get_vary()}\r\n"
         "Connection: close\r\n"
     )
+    #print(f"################### ETag\n {response.get_etag()}", flush=True)
     # Build headers as bytes and concatenate with body bytes
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
