@@ -3,10 +3,15 @@
 import mimetypes
 import os
 import logging
+from time import sleep
 
 # Project imports
 from cache_utils import Cache
-from header_utils import get_date_header, get_last_modified_header, is_not_modified_since
+from header_utils import (
+    get_date_header,
+    get_last_modified_header,
+    is_not_modified_since,
+)
 
 
 # Serve files relative to the repository/module directory (document root)
@@ -133,6 +138,7 @@ def create_404_response():
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
+
 # TODO: Allow the passing in of header arguments as an iteratable object
 def create_response(body, status):
     """Create a generic HTTP response message.
@@ -158,12 +164,13 @@ def create_response(body, status):
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
+
 def request_well_formed(method, version):
     """
     Checks the request header for the correct version and if it calling a supported method by
     the proxy server.
 
-    Args: 
+    Args:
         method (str): The method contained within the request
         version (str): The version of the http request (formated as "HTTP/x.x")
 
@@ -174,7 +181,7 @@ def request_well_formed(method, version):
 
         otherwise, returns None.
     """
-    supported_methods = ["GET"] # Methods supported by the proxy server
+    supported_methods = ["GET"]  # Methods supported by the proxy server
     supported_versions = ["HTTP/1.0", "HTTP/1.1"]
 
     if method not in supported_methods:
@@ -189,7 +196,8 @@ def request_well_formed(method, version):
 
     return None
 
-def handle_request(request, cache : Cache):
+
+def handle_request(request, cache: Cache):
     """Parse the HTTP request and generate the appropriate response.
 
     Args:
@@ -200,7 +208,7 @@ def handle_request(request, cache : Cache):
     """
 
     # simulate processing delay
-    # sleep(0.01)
+    sleep(0.01)
 
     request = request.decode("utf-8")  # Decode bytes to string
 
@@ -221,14 +229,14 @@ def handle_request(request, cache : Cache):
     if (to_return := request_well_formed(method, version)) is not None:
         return to_return
 
-    '''
+    """
     TODO: Implement Cache behaviour: 
     At this point the system knows the request is structurally sound.
     Enters cache -> If the cache finds the resource determines if code 304 or 200 is appropriate.
     Cache Miss -> Attempts to acquires resource from 'Web Server' May result in a 403, 404 code.
                   If the resource is successfully acquired the 304 or 200 procedure is gone through
                   again.
-    '''
+    """
 
     # Resolve path within DOCUMENT_ROOT to prevent directory traversal
     path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
@@ -246,7 +254,7 @@ def handle_request(request, cache : Cache):
         status = Status(403, "Forbidden")
         return create_response(body, status)
 
-    #TODO Successful validation : Access cache
+    # TODO Successful validation : Access cache
     # 304: Not Modified
     if "If-Modified-Since" in headers:
         # last_modified = parsedate_to_datetime(headers["If-Modified-Since"]).timestamp()

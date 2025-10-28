@@ -6,13 +6,19 @@ Runs up to the maximum number of threads defined in thread_utils.py.
 import logging
 import socket
 import sys
+
 # Project imports
-from thread_utils import initialize_socket_thread, logger
 from cache_utils import Cache
+from thread_utils import (
+    initialize_socket_thread,
+    logger,
+    start_worker_pool,
+    stop_worker_pool,
+)
 
 
 HOST = "127.0.0.1"
-MAX_LISTEN_QUEUE_SIZE = 0
+MAX_LISTEN_QUEUE_SIZE = 256
 PORT = 8080
 
 # ANSI color codes
@@ -51,7 +57,8 @@ def start_server():
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.bind((HOST, PORT))
         server_socket.listen(MAX_LISTEN_QUEUE_SIZE)  # Listen for incoming connections
-        logger.info("Server is listening for request on %s:%d", HOST, PORT)
+        start_worker_pool()
+        logger.info("Server is listening for request on %s:%s", HOST, PORT)
 
         try:
             while True:  # Loop forever
@@ -61,7 +68,7 @@ def start_server():
         except KeyboardInterrupt:
             logger.info("Server is shutting down due to keyboard interrupt")
         finally:
-            server_socket.close()
+            stop_worker_pool()
             logger.info("Server has shut down")
 
 
