@@ -48,8 +48,7 @@ def is_future_date(datetime_obj : datetime) -> bool:
     Returns:
         (bool): If the argument is in the future returns true, otherwise false.
     """
-    cur_date = datetime()
-    cur_date.now()  # Guarantees that datetime obj is not empty
+    cur_date = datetime.now()
     return cur_date.timestamp() < datetime_obj.timestamp()
 
 
