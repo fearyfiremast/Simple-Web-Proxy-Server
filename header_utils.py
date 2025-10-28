@@ -1,16 +1,25 @@
 from email.utils import formatdate, parsedate_to_datetime
 from os.path import getmtime
 from time import time
+from datetime import datetime
 
 CACHE_REQ_FIELDS = ["If-None-Match", "If-Modified-Since", "Vary"]
 
-def get_date_header():
+def get_date_header(date=None):
     """Generate a Date header for HTTP response.
-
+    Args:
+        date(datetime): is None by default. Otherwise function will get the posix time of the
+        object and return it as a formatted date.
+    
     Returns:
         str: The Date header string.
     """
-    return formatdate(timeval=time(), localtime=False, usegmt=True)
+    if date is None:
+        date = time()
+    else:
+        date = date.timestamp()
+
+    return formatdate(timeval=date, localtime=False, usegmt=True)
 
 
 def is_not_modified_since(filepath, ims_header):
