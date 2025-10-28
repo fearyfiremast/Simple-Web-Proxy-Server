@@ -2,6 +2,8 @@ from email.utils import formatdate, parsedate_to_datetime
 from os.path import getmtime
 from time import time
 
+CACHE_REQ_FIELDS = ["If-None-Match", "If-Modified-Since", "Vary"]
+
 def get_date_header():
     """Generate a Date header for HTTP response.
 
@@ -53,9 +55,8 @@ def convert_datetime_to_posix(datetime):
     return parsedate_to_datetime(datetime).timestamp()
 
 def convert_reqheader_into_dict(to_convert : list):
-    cache_header_fields = ["If-None-Match", "If-Modified-Since", "Vary"]
     to_return = {}
-    for header in cache_header_fields:
+    for header in CACHE_REQ_FIELDS:
         # Default behaviour is to print "N/A" if value
         # is not in dict. None is prefered of NA.
         to_return[header] = None
