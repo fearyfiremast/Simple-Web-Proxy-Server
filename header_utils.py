@@ -2,6 +2,7 @@ from email.utils import formatdate, parsedate_to_datetime
 from os.path import getmtime
 from time import time
 from datetime import datetime
+import mimetypes
 
 CACHE_REQ_FIELDS = ["If-None-Match", "If-Modified-Since", "Vary"]
 
@@ -92,3 +93,22 @@ def convert_reqheader_into_dict(to_convert : list):
         to_return[key.strip()] = value.strip()
 
     return to_return
+
+def acquire_resource(filepath):
+    """
+    From the passed in filepath returns a tuple containing the file contents and guessed file type.
+    Args:
+    filepath(str): URL that indicates where to find a requested resource. (should be absolute).
+
+    Returns:
+    tuple(str, str): tuple[0] contains the content of the file. tuple[1] has the guessed type.
+    """
+    with open(filepath, "rb") as file:
+        body = file.read()
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+
+    content_type = mimetypes.guess_type(filepath)[0] or "text/plain; charset=utf-8"
+    
+    # Some values here are temporary
+    return (body, content_type, get_last_modified_header(filepath))
