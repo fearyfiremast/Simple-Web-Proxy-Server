@@ -2,7 +2,7 @@
 import threading
 
 # Project imports
-from header_utils import is_not_modified_since
+from header_utils import (is_not_modified_since, CACHE_REQ_FIELDS)
 
 class Cache:
     '''
@@ -49,7 +49,7 @@ class Cache:
         Searches cache data structure for a record with matching key as attribute.
 
         Args:
-            key (str, dict): A tuple contain the resource URL as well as a Dict of the header fields
+            key dict: contains the request header fields
 
         Returns:
 
@@ -69,7 +69,8 @@ class Cache:
                     expired_records.append(record)
                     continue # prevents the case of a record being expired and matching the key
                 
-                if record.is_match(key):
+                # passes in dict
+                if record.is_match(key[1]):
                     to_return = record
                     to_return.update_expiry_date()
                     self._records.remove(record)
@@ -115,8 +116,10 @@ class Record:
     _vary = None
     _expires = None
     _content = None
+    _reqresponse_map = {}
 
     def __init__(self, response):
+        
         return
 
     def update_expiry_date(self):
@@ -127,8 +130,20 @@ class Record:
         gets the important information for
         """
         return (self._last_modified, self._content)
-    
 
-    def is_match(self, key) -> bool:
-        """Checks if the record has the resource by URL"""
-        return self._url == key
+    def is_match(self, dictionary) -> bool:
+        """Checks if the record has the resource by values in the key"""
+        req_eTag = dictionary["If-None-Match"]
+        req_mod_date = dictionary["If-Modified-Since"]
+
+        if req_eTag is not None and req_mod_date is not None:
+            return (req_eTag == self._etag) and (req_mod_date == self._last_modified )
+            
+        elif req_eTag is not None:
+           return req_eTag == self._etag
+        
+        elif req_mod_date is not None:
+            return req_mod_date == self._last_modified
+
+        # No valid identifiers
+        return False
