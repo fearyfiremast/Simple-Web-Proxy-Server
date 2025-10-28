@@ -5,7 +5,7 @@ from datetime import datetime
 
 CACHE_REQ_FIELDS = ["If-None-Match", "If-Modified-Since", "Vary"]
 
-def get_date_header(date=None):
+def get_date_header(date:datetime=None) -> str:
     """Generate a Date header for HTTP response.
     Args:
         date(datetime): is None by default. Otherwise function will get the posix time of the
