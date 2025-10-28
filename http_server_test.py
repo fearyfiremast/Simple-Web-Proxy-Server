@@ -214,31 +214,29 @@ class TestPart1(unittest.TestCase):
             except OSError:
                 pass
 
-    # def test_403_outside_path(self):
-    #     """Requesting a path outside the server root should return 403 with headers."""
-    #     # printf "GET /../ HTTP/1.1\r\nHost: localhost\r\n\r\n" | nc 127.0.0.1 8080
-    #     cmd = [
-    #         "printf",
-    #         "$GET /../ HTTP/1.1\r\nHost: localhost\r\n\r\n",
-    #         "|",
-    #         "nc",
-    #         f"{HOST}",
-    #         f"{PORT}",
-    #     ]
-    #     result = capture_package_values(cmd)
-    #     print("RESULT:", result)
-    #     status_line, headers, body = parse_response(result)
+    def test_403_outside_path(self):
+        """Requesting a path outside the server root should return 403 with headers."""
+        s = socket.socket()
+        s.connect((HOST, PORT))
+        request = "GET /../ HTTP/1.1\r\nHost: localhost\r\n\r\n"
+        s.send(request.encode("utf-8"))
+        result = s.recv(4096).decode("utf-8")
+        s.close()
 
-    #     append_report(
-    #         "403 Forbidden Response: File outside server root directory",
-    #         headers,
-    #         body,
-    #         body_fmt="text",
-    #     )
+        status_line, headers, body = parse_response(result)
 
-    #     self.assertTrue(status_line.startswith("HTTP/1.1 403"))
-    #     for name in ("date", "server", "content-type", "content-length", "connection"):
-    #         self.assertIn(name, headers)
+        append_report(
+            "403 Forbidden: File outside server root path",
+            headers,
+            body,
+            body_fmt="text",
+            command=["Socket send: " + request.replace("\r\n", "\\r\\n")],
+            status_line=status_line,
+        )
+
+        self.assertTrue(status_line.startswith("HTTP/1.1 403"))
+        for name in ("Date", "Server", "Content-Type", "Content-Length", "Connection"):
+            self.assertIn(name, headers)
 
     def test_505_headers_present(self):
 
