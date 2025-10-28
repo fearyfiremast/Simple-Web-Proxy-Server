@@ -81,6 +81,11 @@ def create_304_response():
 
     Returns:
         bytes: A UTF-8 encoded HTTP response message.
+
+        "Cache-Control: 'max-age=3600'\r\n"
+        f"ETag: '{response.get_etag()}'\r\n"
+        f"Last-Modified: {response.get_last_modified()}\r\n"
+        f"Vary: {response.get_vary()}\r\n"
     """
     response_line = "HTTP/1.1 304 Not Modified\r\n"
     headers = (
