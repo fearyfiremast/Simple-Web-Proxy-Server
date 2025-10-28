@@ -4,7 +4,13 @@ from email.utils import formatdate, parsedate_to_datetime
 import mimetypes
 import os
 from os.path import getmtime
-from time import time
+from time import sleep, time
+import logging
+
+
+# Serve files relative to the repository/module directory (document root)
+DOCUMENT_ROOT = os.path.dirname(os.path.abspath(__file__))
+logger = logging.getLogger(__name__)
 
 
 class Status:
@@ -24,10 +30,16 @@ def is_accessable_file(filepath):
     Returns:
         bool: True if the file exists and is accessible, False otherwise.
     """
-    if not os.path.abspath(filepath).startswith(os.getcwd()):
+    # Only allow files inside the document root
+    try:
+        abs_path = os.path.abspath(filepath)
+    except Exception:
         return False
-    else:
-        return os.path.isfile(filepath) and os.access(filepath, os.R_OK)
+
+    if not abs_path.startswith(DOCUMENT_ROOT):
+        return False
+
+    return os.path.isfile(abs_path) and os.access(abs_path, os.R_OK)
 
 
 def get_date_header():
@@ -79,7 +91,7 @@ def create_200_response(filepath):
     Returns:
         bytes: A UTF-8 encoded HTTP response message.
     """
-    # Read file content
+    # Read file content (filepath should be absolute)
     with open(filepath, "rb") as file:
         body = file.read()
     if isinstance(body, str):
@@ -118,6 +130,25 @@ def create_304_response():
     )
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes
+
+
+def create_503_response():
+    """Create a 503 Service Unavailable HTTP response message.
+
+    Returns:
+        bytes: A UTF-8 encoded HTTP response message.
+    """
+    body = "Service Unavailable\n".encode("utf-8")
+    response_line = "HTTP/1.1 503 Service Unavailable\r\n"
+    headers = (
+        f"Date: {get_date_header()}\r\n"
+        "Server: Smith-Peters-Web-Server/1.0\r\n"
+        "Content-Type: text/plain; charset=utf-8\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "Connection: close\r\n"
+    )
+    header_bytes = (response_line + headers + "\r\n").encode("utf-8")
+    return header_bytes + body
 
 
 def create_404_response():
@@ -176,6 +207,10 @@ def handle_request(request):
     Returns:
         bytes: The UTF-8 encoded HTTP response message.
     """
+
+    # simulate processing delay
+    # sleep(0.01)
+
     request = request.decode("utf-8")  # Decode bytes to string
 
     # print(f"Full Request:\n{request}", flush=True)
@@ -191,13 +226,16 @@ def handle_request(request):
         key, value = line.split(":", 1)
         headers[key.strip()] = value.strip()  # Store header in a dictionary
 
-    if version != "HTTP/1.1":
-        body = "HTTP Version Not Supported\n"
+    if version not in ["HTTP/1.0", "HTTP/1.1"]:
+        body = (
+            "HTTP Version Not Supported.\nOnly HTTP/1.0 and HTTP/1.1 are supported.\n"
+        )
         status = Status(505, "HTTP Version Not Supported")
         return create_response(body, status)
 
-    path = os.path.join(".", path.lstrip("/"))  # Prevent directory traversal
-    # print(f"Requested Path: {path.lstrip("/")}", flush=True)
+    # Resolve path within DOCUMENT_ROOT to prevent directory traversal
+    path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
+    # print(f"Requested Path: {path}", flush=True)
 
     # 404: File does not exist
     if not os.path.exists(path):
@@ -224,10 +262,9 @@ def handle_request(request):
         parts = request.split()
         if len(parts) >= 2:
             if method == "GET":  # Currently only handling GET requests
-                filepath = path.lstrip("/")
-                if os.path.isfile(filepath):
+                if os.path.isfile(path):
                     # 200 OK
-                    return create_200_response(filepath)
+                    return create_200_response(path)
                 else:
                     body = "File Not Found\n"
                     status = Status(404, "Not Found")
