@@ -23,6 +23,7 @@ def get_date_header(date:datetime=None) -> str:
 
     return formatdate(timeval=date, localtime=False, usegmt=True)
 
+
 def compute_etag(content, vary):
     """
     computes the etag of a request.
@@ -35,6 +36,21 @@ def compute_etag(content, vary):
         (int): the used etag
     """
     return hash((content, vary))
+
+
+def is_future_date(datetime_obj : datetime) -> bool:
+    """
+    Checks if referenced datetime obj is in the future or not.
+
+    Args:
+        datetime_obj (datetime): a datetime obj that may or may not have a value that is future from now.
+
+    Returns:
+        (bool): If the argument is in the future returns true, otherwise false.
+    """
+    cur_date = datetime()
+    cur_date.now()  # Guarantees that datetime obj is not empty
+    return cur_date.timestamp() < datetime_obj.timestamp()
 
 
 def is_not_modified_since(filepath, ims_header):
@@ -67,16 +83,6 @@ def get_last_modified_header(filepath):
     last_modified_time = getmtime(filepath)
     return formatdate(timeval=last_modified_time, localtime=False, usegmt=True)
 
-def convert_datetime_to_posix(datetime):
-    """
-    Converts a datetime object to a number signifying POSIX time
-    Args:
-        datetime: datetime object
-    
-    Returns:
-        POSIX time (number)
-    """
-    return parsedate_to_datetime(datetime).timestamp()
 
 def convert_reqheader_into_dict(to_convert : list):
     to_return = {}
@@ -93,6 +99,7 @@ def convert_reqheader_into_dict(to_convert : list):
         to_return[key.strip()] = value.strip()
 
     return to_return
+
 
 def acquire_resource(filepath):
     """
