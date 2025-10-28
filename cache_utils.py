@@ -42,8 +42,8 @@ class Cache:
         """
         if record is None:
             return
-        return
-
+        
+        return 
     def find_record(self, key):
         """
         Searches cache data structure for a record with matching key as attribute.
@@ -54,7 +54,7 @@ class Cache:
         Returns:
 
         """
-        
+
         to_return = None
         expired_records = []
 
@@ -111,21 +111,23 @@ class Cache:
 
 class Record:
     _etag = None
-    _date = None
+    _last_modified = None
+    _vary = None
     _expires = None
     _content = None
-
-    def __init__(self, url, modifaction_date, data):
-        self._url = url
-        self._modification_date = modifaction_date
-        self._data = data
 
     def __init__(self, response):
         return
 
     def update_expiry_date(self):
         return
-
+    
+    def get_request_form(self):
+        """
+        gets the important information for
+        """
+        return (self._last_modified, self._content)
+    
 
     def is_match(self, key) -> bool:
         """Checks if the record has the resource by URL"""
