@@ -1,14 +1,15 @@
 """Module that handles server cache behaviour"""
 import threading
 from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
 
 # Project imports
 from header_utils import (
-    is_not_modified_since, 
     get_date_header,
     get_last_modified_header,
     compute_etag,
-    acquire_resource
+    acquire_resource,
+    is_future_date
     )
 
 class Cache:
@@ -34,8 +35,11 @@ class Cache:
         Returns:
             (bool): True if it has expired, false otherwise
         """
-            
-        return
+        
+        expiry = record.get_expiry()
+
+        # parses str representation of date to datetime obj and passes obj for comparision
+        return not is_future_date(parsedate_to_datetime(expiry))
     
     def _remove_records(self, array):
         """
@@ -149,6 +153,16 @@ class Record:
 
         return
 
+    def get_expiry(self) -> str:
+        """
+        Returns the expiry of the record in date format.
+
+        Returns:
+            string expression of expiry date.
+            ex: 'Mon, Apr 17 ...'
+        """
+        return self._expires
+    
 
     def update_expiry_date(self, offset:float=0):
         """ 
@@ -165,6 +179,7 @@ class Record:
         expirydate.now()
         expirydate = expirydate + timedelta(second=(2+offset))
         self._expires = get_date_header(expirydate)
+
 
     def is_match(self, dictionary) -> bool:
         """
