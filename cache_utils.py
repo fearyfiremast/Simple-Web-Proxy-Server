@@ -39,18 +39,21 @@ class Cache:
     
     def _remove_records(self, array):
         """
-        TODO: Removes records from _records list
+        Removes records in the passed array from _records list.
+
+        Precondition: 
+            function is called while only one thread controls access to the _records
+            list.
+        
+        Args:
+            array (list): contains a list of items that are also in the _records list.
+                          must be iterable.
         """
+        for item in array:
+            self._records.remove(item)
+
         return
     
-    def _record_to_response(self, record):
-        """
-        TODO: Converts the cache representation of data to socket representation
-        """
-        if record is None:
-            return
-        
-        return 
     def find_record(self, key):
         """
         Searches cache data structure for a record with matching key as attribute.
@@ -114,6 +117,9 @@ class Cache:
         return
     
 class Record:
+    """
+    Internal representation of requests
+    """
     _etag = None
     _last_modified = None
     _vary = None
@@ -121,7 +127,16 @@ class Record:
     _content_type = None
     _content = None
 
-    def __init__(self, url):
+    def __init__(self, url : str):
+        """
+        Constructor for the Record class
+
+        Args:
+            url (str): the absolute path of the file we want to acquire
+
+        Returns:
+            a fully formed record object
+        """
         retrieved = acquire_resource(url)
         
         # Setting up fields
@@ -152,7 +167,9 @@ class Record:
         self._expires = get_date_header(expirydate)
 
     def is_match(self, dictionary) -> bool:
-        """Checks if the record has the resource by values in the key"""
+        """
+        Checks if the record has the resource by values in the key
+        """
         req_eTag = dictionary["If-None-Match"]
         req_mod_date = dictionary["If-Modified-Since"]
 
