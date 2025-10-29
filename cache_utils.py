@@ -91,7 +91,7 @@ class Cache:
                     continue # prevents the case of a record being expired and matching the key
                 
                 # passes in dict
-                if record.is_match(key[1]):
+                if record.is_match(key):
                     to_return = record
                     to_return.update_expiry_date()
                     self._records.remove(record)
@@ -169,7 +169,7 @@ class Record:
         self._content_type = retrieved[1]
         self._last_modified = get_last_modified_header(url)
         self._vary = "Accept-Encoding"
-        self._etag = compute_etag(self._etag, self._vary)
+        self._etag = compute_etag(self._content, self._vary)
         self.update_expiry_date()
 
         return
