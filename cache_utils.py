@@ -157,6 +157,14 @@ class Cache:
             self._records = [record] + self._records
         return
 
+    def clear_cache(self):
+        """
+        Clears all records from the cache.
+        """
+        with self._lock:
+            self._records = []
+        return
+
 
 class Record:
     """

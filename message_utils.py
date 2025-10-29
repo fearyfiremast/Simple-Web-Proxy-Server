@@ -1,11 +1,11 @@
 """A module for handling HTTP message creation and parsing."""
 
-from time import sleep
+import time
 import os
 import logging
 
 # Project imports
-from cache_utils import Cache, Record
+from cache_utils import Cache, Record, DEFAULT_TTL_SECONDS
 from header_utils import (
     get_date_header,
     is_not_modified_since,
@@ -15,6 +15,9 @@ from header_utils import (
 # Serve files relative to the repository/module directory (document root)
 DOCUMENT_ROOT = os.path.dirname(os.path.abspath(__file__))
 logger = logging.getLogger(__name__)
+
+# Simulated propagation delay (in seconds) for cache MISS paths; configurable via admin endpoint
+PROP_DELAY: float = 0.0
 
 
 class Status:
@@ -47,7 +50,7 @@ def is_accessable_file(filepath):
 
 
 # response package (content, content_type, last_modified)
-def create_200_response(response: Record):
+def create_200_response(response: Record, extra_headers: dict | None = None):
     """Create an HTTP response message.
 
     Args:
@@ -62,24 +65,28 @@ def create_200_response(response: Record):
         response.get_content()
     )  # pre encoded to UTF-8 by acquire_resources in header_util
     response_line = f"HTTP/1.1 {status.code} {status.text}\r\n"
-    headers = (
-        f"Date: {get_date_header()}\r\n"
-        "Server: Smith-Peters-Web-Server/1.0\r\n"
-        f"Content-Type: {response.get_content_type()}\r\n"  # Content-Length is the number of bytes
-        f"Content-Length: {len(body)}\r\n"
-        "Cache-Control: 'max-age=3600'\r\n"
-        f"ETag: '{response.get_etag()}'\r\n"
-        f"Last-Modified: {response.get_last_modified()}\r\n"
-        f"Vary: {response.get_vary()}\r\n"
-        "Connection: close\r\n"
-    )
+    headers = [
+        f"Date: {get_date_header()}\r\n",
+        "Server: Smith-Peters-Web-Server/1.0\r\n",
+        f"Content-Type: {response.get_content_type()}\r\n",
+        f"Content-Length: {len(body)}\r\n",
+        "Cache-Control: max-age=3600\r\n",
+        f'ETag: "{response.get_etag()}"\r\n',
+        f"Last-Modified: {response.get_last_modified()}\r\n",
+        f"Vary: {response.get_vary()}\r\n",
+        "Connection: close\r\n",
+    ]
+    if isinstance(extra_headers, dict):
+        for k, v in extra_headers.items():
+            headers.append(f"{k}: {v}\r\n")
+    headers = "".join(headers)
     # print(f"################### ETag\n {response.get_etag()}", flush=True)
     # Build headers as bytes and concatenate with body bytes
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
 
-def create_304_response(response: Record):
+def create_304_response(response: Record, extra_headers: dict | None = None):
     """Create a 304 Not Modified HTTP response message.
 
     Returns:
@@ -87,16 +94,20 @@ def create_304_response(response: Record):
 
     """
     response_line = "HTTP/1.1 304 Not Modified\r\n"
-    headers = (
-        f"Date: {get_date_header()}\r\n"
-        "Server: Smith-Peters-Web-Server/1.0\r\n"
-        f"Content-Length: 0\r\n"
-        "Cache-Control: 'max-age=3600'\r\n"
-        f"ETag: '{response.get_etag()}'\r\n"
-        f"Last-Modified: {response.get_last_modified()}\r\n"
-        f"Vary: {response.get_vary()}\r\n"
-        "Connection: close\r\n"
-    )
+    headers = [
+        f"Date: {get_date_header()}\r\n",
+        "Server: Smith-Peters-Web-Server/1.0\r\n",
+        "Content-Length: 0\r\n",
+        "Cache-Control: max-age=3600\r\n",
+        f'ETag: "{response.get_etag()}"\r\n',
+        f"Last-Modified: {response.get_last_modified()}\r\n",
+        f"Vary: {response.get_vary()}\r\n",
+        "Connection: close\r\n",
+    ]
+    if isinstance(extra_headers, dict):
+        for k, v in extra_headers.items():
+            headers.append(f"{k}: {v}\r\n")
+    headers = "".join(headers)
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes
 
@@ -243,6 +254,41 @@ def handle_request(request, cache: Cache):
     # Store header in a dictionary
     headers = convert_reqheader_into_dict(lines[1:])
 
+    # Admin endpoint to clear cache (bypass method check except for this path)
+    if path == "/__cache__/clear" and method in ("POST", "GET"):
+        cache.clear_cache()
+        logger.warning("Cache cleared via admin endpoint")
+        return create_response("Cache cleared\n", Status(200, "OK"))
+
+    # Admin endpoint to set artificial MISS delay: /__cache__/set-miss-delay?seconds=1.5
+    admin_path, _, query = path.partition("?")
+    if admin_path == "/__cache__/set-miss-delay" and method in ("POST", "GET"):
+        seconds = None
+        if query:
+            for pair in query.split("&"):
+                if not pair:
+                    continue
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    if k.strip().lower() in ("seconds", "s"):
+                        try:
+                            seconds = float(v)
+                        except ValueError:
+                            seconds = None
+                        break
+        if seconds is None or seconds < 0:
+            return create_response(
+                "Invalid or missing 'seconds' parameter\n", Status(400, "Bad Request")
+            )
+        # Clamp to a reasonable range to avoid extreme hangs in tests
+        seconds = max(0.0, min(seconds, 30.0))
+        global PROP_DELAY
+        PROP_DELAY = seconds
+        logger.warning("MISS delay set to %.3fs via admin endpoint", PROP_DELAY)
+        return create_response(
+            f"Miss delay set to {PROP_DELAY:.3f}s\n", Status(200, "OK")
+        )
+
     # Returns a response if request is NOT well formed
     if (to_return := request_well_formed(method, version)) is not None:
         return to_return
@@ -272,13 +318,13 @@ def handle_request(request, cache: Cache):
         if inm is not None:
             etag_clean = inm.strip().strip("'\"")
             if etag_clean == str(found_request.get_etag()):
-                return create_304_response(found_request)
+                return create_304_response(found_request, {"X-Cache": "HIT"})
 
         if ims is not None and is_not_modified_since(abs_path, ims):
-            return create_304_response(found_request)
+            return create_304_response(found_request, {"X-Cache": "HIT"})
 
         # No validators or validators indicate resource changed -> serve 200 from cache
-        return create_200_response(found_request)
+        return create_200_response(found_request, {"X-Cache": "HIT"})
 
     # Not in cache
     # Validate path and accessibility at server
@@ -293,8 +339,8 @@ def handle_request(request, cache: Cache):
                 if os.path.isfile(abs_path):
 
                     logger.warning("Cache miss for %s", path)
-
-                    sleep(2.0)  # Simulate processing delay
+                    if PROP_DELAY > 0:
+                        time.sleep(PROP_DELAY)
 
                     # create record for the representation
                     to_insert = Record(
@@ -305,12 +351,12 @@ def handle_request(request, cache: Cache):
                     # the file has not been modified since that time
                     ims = headers.get("If-Modified-Since")
                     if ims is not None and is_not_modified_since(abs_path, ims):
-                        return create_304_response(to_insert)
+                        return create_304_response(to_insert, {"X-Cache": "MISS"})
 
                     # 200 OK
                     # must create the response before inserting it into cache as after insertion
                     # it may be touched by other threads during response creation (if shallow copy)
-                    to_send = create_200_response(to_insert)
+                    to_send = create_200_response(to_insert, {"X-Cache": "MISS"})
                     cache.insert_response(to_insert)
                     return to_send
 

@@ -86,6 +86,16 @@ class TestPart1(unittest.TestCase):
     def setUp(self):
         # build destination URL for tests
         self.destination = f"http://{HOST}:{PORT}{RESOURCE}"
+        # Clear cache for a clean slate
+        _ = capture_package_values(
+            [
+                "curl",
+                "-sS",
+                "-X",
+                "POST",
+                f"http://{HOST}:{PORT}/__cache__/clear",
+            ]
+        )
 
     def test_200_OK_header(self):
         """
@@ -290,6 +300,222 @@ class TestPart1(unittest.TestCase):
             self.assertIn(name, headers)
 
 
+class TestPart2(unittest.TestCase):
+    """
+    This class is responsible for performing unit tests related to part 2, or caching.
+
+    Extends the unittest.TestCase class.
+    """
+
+    def setUp(self):
+        # build destination URL for tests
+        self.destination = f"http://{HOST}:{PORT}{RESOURCE}"
+        # Clear cache for a clean slate
+        _ = capture_package_values(
+            [
+                "curl",
+                "-sS",
+                "-X",
+                "POST",
+                f"http://{HOST}:{PORT}/__cache__/clear",
+            ]
+        )
+
+        _ = capture_package_values(
+            [
+                "curl",
+                "-sS",
+                "-X",
+                "POST",
+                "http://127.0.0.1:8080/__cache__/set-miss-delay?seconds=1.2",
+            ]
+        )
+
+    def test_cache_hit_on_repeat_requests(self):
+        """Two identical requests should result in second one being a cache HIT (X-Cache: HIT)."""
+        # Warm up cache with first request
+        cmd1 = ["curl", "-i", "-H", "Accept-Encoding: identity", f"{self.destination}"]
+        result1 = capture_package_values(cmd1)
+        status_line1, _headers1, _body1 = parse_response(result1)
+        self.assertTrue(status_line1.startswith("HTTP/1.1 200"))
+
+        append_report(
+            "Cache MISS on First Request:",
+            _headers1,
+            command=cmd1,
+            status_line=status_line1,
+        )
+
+        # Next request should be served from cache
+        cmd2 = ["curl", "-i", "-H", "Accept-Encoding: identity", f"{self.destination}"]
+        result2 = capture_package_values(cmd2)
+        status_line2, headers2, _body2 = parse_response(result2)
+        self.assertTrue(status_line2.startswith("HTTP/1.1 200"))
+
+        # Check cache indicator
+        self.assertEqual(headers2.get("X-Cache"), "HIT")
+
+        append_report(
+            "Cache HIT on Repeat Requests: Request 2",
+            headers2,
+            command=cmd2,
+            status_line=status_line2,
+        )
+
+    def test_cache_miss_then_hit_with_vary(self):
+        """Different Accept-Encoding values should create different cache entries; same value should hit."""
+        # First with identity
+        cmd_identity = [
+            "curl",
+            "-i",
+            "-H",
+            "Accept-Encoding: identity",
+            f"{self.destination}",
+        ]
+        _ = capture_package_values(cmd_identity)
+
+        # Now with gzip - different representation, should MISS then HIT on repeat
+        cmd_gzip1 = ["curl", "-i", "--compressed", f"{self.destination}"]
+        res1 = capture_package_values(cmd_gzip1)
+        _, headers_gz1, _ = parse_response(res1)
+        # X-Cache may be missing for compressed if server doesn't compress; we rely on repeat below
+
+        cmd_gzip2 = ["curl", "-i", "--compressed", f"{self.destination}"]
+        res2 = capture_package_values(cmd_gzip2)
+        _, headers_gz2, _ = parse_response(res2)
+        # Second compressed request should be a HIT for same encoding dimension
+        self.assertEqual(headers_gz2.get("X-Cache"), "HIT")
+
+        append_report(
+            "Cache Miss then Hit with Vary on Accept-Encoding",
+            headers_gz2,
+            command=cmd_gzip2,
+            status_line="HTTP/1.1 200 OK",
+        )
+
+    def test_304_with_etag_and_ims_from_cache(self):
+        """Request with ETag or IMS that matches cached entry should return 304 and X-Cache: HIT."""
+        # Warm cache
+        cmd = ["curl", "-i", "-H", "Accept-Encoding: identity", f"{self.destination}"]
+        res = capture_package_values(cmd)
+        _, headers, _ = parse_response(res)
+        etag = headers.get("ETag")
+        last_modified = headers.get("Last-Modified")
+        self.assertIsNotNone(etag)
+        self.assertIsNotNone(last_modified)
+
+        # ETag validator
+        cmd_etag = [
+            "curl",
+            "-i",
+            "-H",
+            f"If-None-Match: {etag}",
+            "-H",
+            "Accept-Encoding: identity",
+            f"{self.destination}",
+        ]
+        res_etag = capture_package_values(cmd_etag)
+        status_etag, h_etag, _ = parse_response(res_etag)
+        self.assertTrue(status_etag.startswith("HTTP/1.1 304"))
+        self.assertEqual(h_etag.get("X-Cache"), "HIT")
+
+        append_report(
+            "304 Not Modified with ETag from Cache",
+            h_etag,
+            command=cmd_etag,
+            status_line=status_etag,
+        )
+
+        # IMS validator
+        cmd_ims = [
+            "curl",
+            "-i",
+            "-H",
+            f"If-Modified-Since: {last_modified}",
+            "-H",
+            "Accept-Encoding: identity",
+            f"{self.destination}",
+        ]
+        res_ims = capture_package_values(cmd_ims)
+        status_ims, h_ims, _ = parse_response(res_ims)
+        self.assertTrue(status_ims.startswith("HTTP/1.1 304"))
+        self.assertEqual(h_ims.get("X-Cache"), "HIT")
+
+        append_report(
+            "304 Not Modified with If-Modified-Since from Cache",
+            h_ims,
+            command=cmd_ims,
+            status_line=status_ims,
+        )
+
+    def test_high_volume_requests(self):
+        """Send a high volume of requests to test server stability and caching under load."""
+        import shutil, time
+
+        # Skip if ApacheBench is not installed
+        if shutil.which("ab") is None:
+            self.skipTest("ApacheBench (ab) is not installed on this system")
+
+        # Warm cache so the benchmark measures cached responses
+        _ = capture_package_values(
+            [
+                "curl",
+                "-sS",
+                "-H",
+                "Accept-Encoding: identity",
+                f"http://{HOST}:{PORT}/test.html",
+            ]
+        )
+
+        num_requests = 50
+        concurrency = 10
+        per_socket_timeout = 2.5  # ab per-conn timeout
+        threshold_seconds = 4.0  # end-to-end test must finish under this
+
+        cmd = [
+            "ab",
+            "-n",
+            str(num_requests),
+            "-c",
+            str(concurrency),
+            "-H",
+            "Accept-Encoding: identity",
+            f"http://{HOST}:{PORT}/test.html",
+        ]
+
+        start = time.perf_counter()
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=threshold_seconds,
+            )
+        except subprocess.TimeoutExpired:
+            self.fail(
+                f"High volume request test exceeded {threshold_seconds:.2f}s (timeout)"
+            )
+        elapsed = time.perf_counter() - start
+
+        # Verify we completed under the threshold
+        self.assertLessEqual(
+            elapsed,
+            threshold_seconds,
+            f"ab run took {elapsed:.2f}s, expected <= {threshold_seconds:.2f}s",
+        )
+        time.sleep(3)  # brief pause to ensure output is flushed
+        # Basic sanity: no failed requests as reported by ab
+        self.assertIn("Failed requests:        0", proc.stdout)
+
+        append_report(
+            "High Volume Requests Performance",
+            {"Elapsed": f"{elapsed:.2f}s"},
+            command=cmd,
+            status_line="ab completed",
+        )
+
+
 def refresh_report():
     """Initialize the results file as Markdown."""
     if not REPORT_STATUS:
@@ -354,4 +580,6 @@ if __name__ == "__main__":
             PORT = int(sys.argv[1])
             del sys.argv[1]
     refresh_report()
+    print("---- BEGIN TESTS ----")
+    print(f"Running tests against server at {HOST}:{PORT}")
     unittest.main()
