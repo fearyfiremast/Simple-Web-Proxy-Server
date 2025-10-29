@@ -264,14 +264,24 @@ class Record:
         req_eTag = dictionary["If-None-Match"]
         req_mod_date = dictionary["If-Modified-Since"]
 
+        # mod date is <= because if == then we have the most recent. If < we want the new ver 
         if req_eTag is not None and req_mod_date is not None:
-            return (req_eTag == self._etag) and (req_mod_date == self._last_modified )
+            return (req_eTag == self._etag) and (req_mod_date <= self._last_modified )
             
         elif req_eTag is not None:
            return req_eTag == self._etag
         
         elif req_mod_date is not None:
-            return req_mod_date == self._last_modified
+            return req_mod_date <= self._last_modified
 
         # No valid identifiers
         return False
+
+    def is_newer_than(self, header_str : str):
+        if header_str is None or header_str == "N/A":
+            return False
+        
+        # Has operator overloading for inequality
+        return parsedate_to_datetime(self._last_modified) > parsedate_to_datetime(header_str)
+
+        
