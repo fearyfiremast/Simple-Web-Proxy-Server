@@ -393,6 +393,10 @@ class TestPart2(unittest.TestCase):
             status_line="HTTP/1.1 200 OK",
         )
 
+    #TODO: Test cache entires expire on their own time
+
+    #TODO: Test cache with different entries
+
     def test_304_with_etag_and_ims_from_cache(self):
         """Request with ETag or IMS that matches cached entry should return 304 and X-Cache: HIT."""
         # Warm cache
