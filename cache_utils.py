@@ -29,10 +29,14 @@ class Cache:
 
     def __init__(self):
         return
+    
+    def _change_base_TTL(self, val):
+        """ Testing method to change the TTL from client"""
+        global DEFAULT_TTL_SECONDS
+        DEFAULT_TTL_SECONDS = val
 
     def _is_expired(self, record):
         """
-        TODO
         method that takes as input a record and checks to see if it has expired.
 
         Args:
@@ -102,7 +106,7 @@ class Cache:
                 if record.is_match(key):
                     to_return = record
                     self._records.remove(record)
-                    # Propends record to front to emulate temporal locality
+                
                     self._records = [to_return] + self._records
                     break  # We found the record that we wanted so we leave early.
 
@@ -163,6 +167,23 @@ class Cache:
         """
         with self._lock:
             self._records = []
+        return
+    
+    def evict_expired(self):
+        """
+        Evicts expired records from cache. For use in testing
+        """
+        with self._lock:
+            expired_records = []
+            for record in self._records:
+                if self._is_expired(record):
+                    expired_records.append(record)
+
+            
+            # True if an expired record was found
+            if len(expired_records) > 0:
+                self._remove_records(expired_records)
+       
         return
 
 

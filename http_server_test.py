@@ -393,6 +393,51 @@ class TestPart2(unittest.TestCase):
             status_line="HTTP/1.1 200 OK",
         )
 
+    #TODO: Test cache entires expire on their own time
+    def test_expiry_evicts_record(self):
+
+        WAIT_TIME = 0
+        # sets wait time
+        cmd = capture_package_values(
+            [
+                "curl",
+                "-sS",
+                "-X",
+                "POST",
+                f"http://{HOST}:{PORT}/__cache__/set-expiry?{WAIT_TIME}",
+            ]
+        )
+
+        # put val in cache
+        capture_package_values(
+            ["curl", f"{self.destination}"]
+        )
+
+        # returns size of cache of eviction
+        cmd = capture_package_values(
+            [
+                "curl",
+                "-sS",
+                "-X",
+                "POST",
+                f"http://{HOST}:{PORT}/__cache__/evict-expired",
+            ]
+        )
+
+
+        # Sets cache expiry back to default
+        capture_package_values(
+            [
+                "curl",
+                "-sS",
+                "-X",
+                "POST",
+                f"http://{HOST}:{PORT}/__cache__/set-expiry?{60}",
+            ]
+        )
+
+        self.assertEqual("0", cmd)
+
     def test_304_with_etag_and_ims_from_cache(self):
         """Request with ETag or IMS that matches cached entry should return 304 and X-Cache: HIT."""
         # Warm cache
