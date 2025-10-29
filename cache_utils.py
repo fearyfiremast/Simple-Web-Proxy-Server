@@ -101,7 +101,6 @@ class Cache:
                 # passes in dict
                 if record.is_match(key):
                     to_return = record
-                    to_return.update_expiry_date()
                     self._records.remove(record)
                     # Propends record to front to emulate temporal locality
                     self._records = [to_return] + self._records
