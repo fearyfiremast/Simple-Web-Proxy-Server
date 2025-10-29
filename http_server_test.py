@@ -398,15 +398,14 @@ class TestPart2(unittest.TestCase):
 
         WAIT_TIME = 0
         # sets wait time
-        cmd = capture_package_values(
-            [
+        cmd_expiry = [
                 "curl",
                 "-sS",
                 "-X",
                 "POST",
                 f"http://{HOST}:{PORT}/__cache__/set-expiry?{WAIT_TIME}",
-            ]
-        )
+        ]
+        capture_package_values(cmd_expiry)
 
         # put val in cache
         capture_package_values(
@@ -414,15 +413,16 @@ class TestPart2(unittest.TestCase):
         )
 
         # returns size of cache of eviction
-        cmd = capture_package_values(
-            [
-                "curl",
-                "-sS",
-                "-X",
-                "POST",
-                f"http://{HOST}:{PORT}/__cache__/evict-expired",
-            ]
-        )
+
+        cmd_evict = [
+            "curl",
+            "-sS",
+            "-X",
+            "POST",
+            f"http://{HOST}:{PORT}/__cache__/evict-expired", 
+        ]
+
+        response = capture_package_values(cmd_evict)
 
 
         # Sets cache expiry back to default
@@ -436,7 +436,19 @@ class TestPart2(unittest.TestCase):
             ]
         )
 
-        self.assertEqual("0", cmd)
+        append_report(
+            "Evict Test: Set Expiry",
+            command=cmd_expiry,
+            status_line="HTTP/1.1 200 OK",
+        )
+
+        append_report(
+            "Evict Test: Evict Cache",
+            command=cmd_evict,
+            status_line="HTTP/1.1 200 OK"
+        )
+
+        self.assertEqual("0", response)
 
     def test_304_with_etag_and_ims_from_cache(self):
         """Request with ETag or IMS that matches cached entry should return 304 and X-Cache: HIT."""
@@ -572,7 +584,7 @@ def refresh_report():
 # project states that we need screenshots of output.
 def append_report(
     title: str,
-    headers: dict,
+    headers: dict | None = None,
     body: str = None,
     body_fmt: str = "html",
     command: list | None = None,
@@ -598,12 +610,13 @@ def append_report(
         if status_line:
             data.write("### Status Line:\n\n")
             data.write("`" + status_line + "`\n\n")
-
-        data.write("### Headers:\n\n")
-        data.write("```http\n")
-        for key, value in headers.items():
-            data.write(f"{key}: {value}\n")
-        data.write("```\n\n")
+        
+        if headers is not None:
+            data.write("### Headers:\n\n")
+            data.write("```http\n")
+            for key, value in headers.items():
+                data.write(f"{key}: {value}\n")
+            data.write("```\n\n")
 
         if body is not None:
             data.write("### Body:\n\n")
