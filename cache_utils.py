@@ -70,7 +70,11 @@ class Cache:
             return
 
         for item in array:
-            self._records.remove(item)
+            try:
+                self._records.remove(item)
+                
+            except(ValueError):
+                continue
 
         return
 
