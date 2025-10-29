@@ -6,10 +6,10 @@ import logging
 # Project imports
 from cache_utils import Cache, Record
 from header_utils import (
-    get_date_header, 
-    is_not_modified_since, 
-    convert_reqheader_into_dict
-    )
+    get_date_header,
+    is_not_modified_since,
+    convert_reqheader_into_dict,
+)
 
 # Serve files relative to the repository/module directory (document root)
 DOCUMENT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -46,7 +46,7 @@ def is_accessable_file(filepath):
 
 
 # response package (content, content_type, last_modified)
-def create_200_response(response : Record):
+def create_200_response(response: Record):
     """Create an HTTP response message.
 
     Args:
@@ -57,7 +57,9 @@ def create_200_response(response : Record):
     """
     # Create response
     status = Status(200, "OK")
-    body = response.get_content() # pre encoded to UTF-8 by acquire_resources in header_util
+    body = (
+        response.get_content()
+    )  # pre encoded to UTF-8 by acquire_resources in header_util
     response_line = f"HTTP/1.1 {status.code} {status.text}\r\n"
     headers = (
         f"Date: {get_date_header()}\r\n"
@@ -70,13 +72,13 @@ def create_200_response(response : Record):
         f"Vary: {response.get_vary()}\r\n"
         "Connection: close\r\n"
     )
-    #print(f"################### ETag\n {response.get_etag()}", flush=True)
+    # print(f"################### ETag\n {response.get_etag()}", flush=True)
     # Build headers as bytes and concatenate with body bytes
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
 
-def create_304_response(response : Record):
+def create_304_response(response: Record):
     """Create a 304 Not Modified HTTP response message.
 
     Returns:
@@ -138,6 +140,7 @@ def create_404_response():
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
+
 # TODO: Allow the passing in of header arguments as an iteratable object
 def create_response(body, status):
     """Create a generic HTTP response message.
@@ -163,12 +166,13 @@ def create_response(body, status):
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
+
 def request_well_formed(method, version):
     """
     Checks the request header for the correct version and if it calling a supported method by
     the proxy server.
 
-    Args: 
+    Args:
         method (str): The method contained within the request
         version (str): The version of the http request (formated as "HTTP/x.x")
 
@@ -179,12 +183,12 @@ def request_well_formed(method, version):
 
         otherwise, returns None.
     """
-    supported_methods = ["GET"] # Methods supported by the proxy server
+    supported_methods = ["GET"]  # Methods supported by the proxy server
     supported_versions = ["HTTP/1.0", "HTTP/1.1"]
 
     if method not in supported_methods:
-        body = "Bad Request\n"
-        status = Status(400, "Bad Request")
+        body = "Method Not Allowed\n"
+        status = Status(405, "Method Not Allowed")
         return create_response(body, status)
 
     if version not in supported_versions:
@@ -194,10 +198,9 @@ def request_well_formed(method, version):
 
     return None
 
+
 def valid_webserver_response(url):
-    """
-    
-    """
+    """ """
 
     # print(f"Requested Path: {path}", flush=True)
 
@@ -212,11 +215,11 @@ def valid_webserver_response(url):
         body = "403 Forbidden: Access Denied\n"
         status = Status(403, "Forbidden")
         return create_response(body, status)
-    
+
     return None
 
 
-def handle_request(request, cache : Cache):
+def handle_request(request, cache: Cache):
     """Parse the HTTP request and generate the appropriate response.
 
     Args:
@@ -242,15 +245,14 @@ def handle_request(request, cache : Cache):
     # Returns a response if request is NOT well formed
     if (to_return := request_well_formed(method, version)) is not None:
         return to_return
-    
-    
-    # Check if cache 
+
+    # Check if cache
     if (found_request := cache.find_record(headers)) is not None:
 
         # if is newer than req 'if_modified_since' then need to send updated copy
         if found_request.is_newer_than(headers["If-Modified-Since"]):
             return create_200_response(found_request)
-        
+
         return create_304_response(found_request)
 
     # Not in cache
@@ -259,7 +261,7 @@ def handle_request(request, cache : Cache):
     if (error_at_srv := valid_webserver_response(path)) is not None:
         return error_at_srv
 
-    #TODO: extract into helper function
+    # TODO: extract into helper function
     if len(lines) > 0:
         parts = request.split()
         if len(parts) >= 2:
@@ -267,20 +269,23 @@ def handle_request(request, cache : Cache):
                 if os.path.isfile(path):
 
                     # create record
-                    to_insert = Record(path) 
+                    to_insert = Record(path)
 
                     # Send 304 if file has not been modified since the time specified
                     # i.e. file last modified time is less than or equal to the time in the header
-                    if is_not_modified_since(path, headers["If-Modified-Since"]) is False:
+                    if (
+                        is_not_modified_since(path, headers["If-Modified-Since"])
+                        is False
+                    ):
                         return create_304_response(to_insert)
-                        
+
                     # 200 OK
                     # must create the response before inserting it into cache as after insertion
                     # it may be touched by other threads during response creation (if shallow copy)
-                    to_send = create_200_response(to_insert)  
+                    to_send = create_200_response(to_insert)
                     cache.insert_response(to_insert)
                     return to_send
-               
+
                 else:
                     body = "File Not Found\n"
                     status = Status(404, "Not Found")
