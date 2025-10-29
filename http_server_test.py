@@ -436,7 +436,7 @@ class TestPart2(unittest.TestCase):
             ]
         )
 
-        self.assertEqual("0", cmd)
+        self.assertEqual("Removed expired records.\nRecords in cache: 0", cmd)
 
     def test_304_with_etag_and_ims_from_cache(self):
         """Request with ETag or IMS that matches cached entry should return 304 and X-Cache: HIT."""
