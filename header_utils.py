@@ -35,7 +35,7 @@ def compute_etag(content, vary):
     Returns:
         (int): the used etag
     """
-    return hash((content, vary))
+    return abs(hash((content, vary)))
 
 
 def is_future_date(datetime_obj : datetime) -> bool:
