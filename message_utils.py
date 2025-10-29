@@ -260,7 +260,7 @@ def handle_request(request, cache: Cache):
         logger.warning("Cache cleared via admin endpoint")
         return create_response("Cache cleared\n", Status(200, "OK"))
     
-    if path == "/__cache__/evict-expired" and method == "POST":
+    if path == "/__cache__/evict-expired" and method in ("POST", "GET"):
         cache.evict_expired()
         logger.warning(f"Evicting expired records")
         return create_response(
@@ -296,7 +296,7 @@ def handle_request(request, cache: Cache):
             f"Miss delay set to {PROP_DELAY:.3f}s\n", Status(200, "OK")
         )
 
-    if admin_path == "/__cache__/set-expiry" and method == "POST":
+    if admin_path == "/__cache__/set-expiry" and method in ("POST", "GET"):
         cache._change_base_TTL(int(query))
         logger.warning(f"Minimum expiration time set to {int(query)}s via admin endpoint")
         return create_response(

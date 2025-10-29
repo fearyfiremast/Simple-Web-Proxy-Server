@@ -72,7 +72,7 @@ class Cache:
         for item in array:
             try:
                 self._records.remove(item)
-                
+
             except(ValueError):
                 continue
 
@@ -110,7 +110,6 @@ class Cache:
                 if record.is_match(key):
                     to_return = record
                     self._records.remove(record)
-                
                     self._records = [to_return] + self._records
                     break  # We found the record that we wanted so we leave early.
 
