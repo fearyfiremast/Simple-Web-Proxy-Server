@@ -1,5 +1,6 @@
 """A module for handling HTTP message creation and parsing."""
 
+from time import sleep
 import os
 import logging
 
@@ -64,7 +65,7 @@ def create_200_response(response: Record):
     headers = (
         f"Date: {get_date_header()}\r\n"
         "Server: Smith-Peters-Web-Server/1.0\r\n"
-        f"Content-Type: {body}\r\n"  # Content-Length is the number of bytes
+        f"Content-Type: {response.get_content_type()}\r\n"  # Content-Length is the number of bytes
         f"Content-Length: {len(body)}\r\n"
         "Cache-Control: 'max-age=3600'\r\n"
         f"ETag: '{response.get_etag()}'\r\n"
@@ -236,8 +237,8 @@ def handle_request(request, cache: Cache):
     # print(f"Full Request:\n{request}", flush=True)
 
     lines = request.split("\r\n")  # Split request into lines
-    request = lines[0]  # First line is the request line
-    method, path, version = request.split()
+    request_line = lines[0]  # First line is the request line
+    method, path, version = request_line.split()
 
     # Store header in a dictionary
     headers = convert_reqheader_into_dict(lines[1:])
@@ -246,37 +247,64 @@ def handle_request(request, cache: Cache):
     if (to_return := request_well_formed(method, version)) is not None:
         return to_return
 
-    # Check if cache
-    if (found_request := cache.find_record(headers)) is not None:
+    # Resolve absolute path within DOCUMENT_ROOT
+    abs_path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
 
-        # if is newer than req 'if_modified_since' then need to send updated copy
-        if found_request.is_newer_than(headers["If-Modified-Since"]):
-            return create_200_response(found_request)
+    # Build cache lookup key: request identity + headers (for Vary semantics)
+    cache_key = {
+        "method": method,
+        "url": abs_path,
+        "version": version,
+        "headers": headers,
+    }
 
-        return create_304_response(found_request)
+    # print(f"Cache Key: {cache_key}", flush=True)
+    # print("Cache Contents Before Lookup:", flush=True)
+    # cache.print_cache()
+
+    # Check if cache has a fresh matching representation
+    if (found_request := cache.find_record(cache_key)) is not None:
+        # Validators: If-None-Match and If-Modified-Since
+        inm = headers.get("If-None-Match")
+        ims = headers.get("If-Modified-Since")
+
+        # Strong/weak ETag handling not implemented; do a simple string compare after stripping quotes
+        if inm is not None:
+            etag_clean = inm.strip().strip("'\"")
+            if etag_clean == str(found_request.get_etag()):
+                return create_304_response(found_request)
+
+        if ims is not None and is_not_modified_since(abs_path, ims):
+            return create_304_response(found_request)
+
+        # No validators or validators indicate resource changed -> serve 200 from cache
+        return create_200_response(found_request)
 
     # Not in cache
-    # Resolve path within DOCUMENT_ROOT to prevent directory traversal
-    path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
-    if (error_at_srv := valid_webserver_response(path)) is not None:
+    # Validate path and accessibility at server
+    if (error_at_srv := valid_webserver_response(abs_path)) is not None:
         return error_at_srv
 
     # TODO: extract into helper function
     if len(lines) > 0:
-        parts = request.split()
+        parts = request_line.split()
         if len(parts) >= 2:
             if method == "GET":  # Currently only handling GET requests
-                if os.path.isfile(path):
+                if os.path.isfile(abs_path):
 
-                    # create record
-                    to_insert = Record(path)
+                    logger.warning("Cache miss for %s", path)
 
-                    # Send 304 if file has not been modified since the time specified
-                    # i.e. file last modified time is less than or equal to the time in the header
-                    if (
-                        is_not_modified_since(path, headers["If-Modified-Since"])
-                        is False
-                    ):
+                    sleep(2.0)  # Simulate processing delay
+
+                    # create record for the representation
+                    to_insert = Record(
+                        abs_path, method=method, version=version, req_headers=headers
+                    )
+
+                    # Send 304 only if client provided If-Modified-Since and
+                    # the file has not been modified since that time
+                    ims = headers.get("If-Modified-Since")
+                    if ims is not None and is_not_modified_since(abs_path, ims):
                         return create_304_response(to_insert)
 
                     # 200 OK

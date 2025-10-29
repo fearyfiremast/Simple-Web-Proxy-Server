@@ -6,13 +6,14 @@ import mimetypes
 
 CACHE_REQ_FIELDS = ["If-None-Match", "If-Modified-Since", "Vary"]
 
-def get_date_header(date:datetime=None) -> str:
+
+def get_date_header(date: datetime = None) -> str:
     """Generate a Date header for HTTP response.
-    
+
     Args:
         date(datetime): is None by default. Otherwise function will get the posix time of the
         object and return it as a formatted date.
-    
+
     Returns:
         str: The Date header string.
     """
@@ -27,7 +28,7 @@ def get_date_header(date:datetime=None) -> str:
 def compute_etag(content, vary):
     """
     computes the etag of a request.
-    
+
     Args:
         content: the main payload of the request
         vary: the vary header of a request
@@ -38,7 +39,7 @@ def compute_etag(content, vary):
     return abs(hash((content, vary)))
 
 
-def is_future_date(datetime_obj : datetime) -> bool:
+def is_future_date(datetime_obj: datetime) -> bool:
     """
     Checks if referenced datetime obj is in the future or not.
 
@@ -62,12 +63,18 @@ def is_not_modified_since(filepath, ims_header):
     Returns:
         bool: True if the file has been modified since the specified time, False otherwise.
     """
+    # Only evaluate when a header value is present; otherwise, treat as modified
+    if not ims_header:
+        return False
     try:
-        ims_time = parsedate_to_datetime(ims_header).timestamp()
-        file_mtime = getmtime(filepath)
+        ims_time = int(parsedate_to_datetime(ims_header).timestamp())
+        file_mtime = int(getmtime(filepath))
+        # print(f"IMS time: {ims_time}, File mtime: {file_mtime}")
+        # True means NOT modified since IMS (eligible for 304)
         return file_mtime <= ims_time
     except (TypeError, ValueError):
-        return True  # If parsing fails, assume modified
+        # On parse failure, do not emit 304
+        return False
 
 
 def get_last_modified_header(filepath):
@@ -83,7 +90,7 @@ def get_last_modified_header(filepath):
     return formatdate(timeval=last_modified_time, localtime=False, usegmt=True)
 
 
-def convert_reqheader_into_dict(to_convert : list):
+def convert_reqheader_into_dict(to_convert: list):
     to_return = {}
     for header in CACHE_REQ_FIELDS:
         # Default behaviour is to print "N/A" if value
@@ -115,6 +122,6 @@ def acquire_resource(filepath):
         body = body.encode("utf-8")
 
     content_type = mimetypes.guess_type(filepath)[0] or "text/plain; charset=utf-8"
-    
+
     # Some values here are temporary
     return (body, content_type, get_last_modified_header(filepath))
