@@ -87,7 +87,7 @@ class TestPart1(unittest.TestCase):
         # build destination URL for tests
         self.destination = f"http://{HOST}:{PORT}{RESOURCE}"
 
-    def test_200_headers_present(self):
+    def test_200_OK_header(self):
         """
         unit test that verifies if the header is well formed
         """
@@ -111,7 +111,7 @@ class TestPart1(unittest.TestCase):
         for name in ("Date", "Server", "Content-Type", "Content-Length", "Connection"):
             self.assertIn(name, headers)
 
-    def test_200_body_content(self):
+    def test_200_OK_body_content(self):
         """
         Unit test that verifies if the payload was delivered as expected
         """
@@ -121,7 +121,7 @@ class TestPart1(unittest.TestCase):
             data = test_html.read()
             self.assertEqual(data.split("\n"), result.split("\n"))
 
-    def test_304_headers_present(self):
+    def test_304_not_modified_headers(self):
         """Request with If-Modified-Since equal to file mtime should return 304 with headers."""
 
         filepath = "./test.html"
@@ -150,26 +150,7 @@ class TestPart1(unittest.TestCase):
         for name in ("Date", "Server", "Content-Length", "Connection"):
             self.assertIn(name, headers)
 
-    def test_404_headers_present(self):
-        """Requesting a missing file should return 404 with expected headers present."""
-        cmd = ["curl", "-i", f"http://{HOST}:{PORT}/no_such_file.html"]
-        result = capture_package_values(cmd)
-        status_line, headers, body = parse_response(result)
-
-        append_report(
-            "404 Not Found",
-            headers,
-            body,
-            body_fmt="bash",
-            command=cmd,
-            status_line=status_line,
-        )
-
-        self.assertTrue(status_line.startswith("HTTP/1.1 404"))
-        for name in ("Date", "Server", "Content-Type", "Content-Length", "Connection"):
-            self.assertIn(name, headers)
-
-    def test_403_locked_file(self):
+    def test_403_forbidden_locked_file(self):
         """Create a file with no read permissions and verify server returns 403."""
         locked_path = "./locked.html"
         # create file and write sample content
@@ -214,7 +195,7 @@ class TestPart1(unittest.TestCase):
             except OSError:
                 pass
 
-    def test_403_outside_path(self):
+    def test_403_forbidden_outside_path(self):
         """Requesting a path outside the server root should return 403 with headers."""
         s = socket.socket()
         s.connect((HOST, PORT))
@@ -238,8 +219,51 @@ class TestPart1(unittest.TestCase):
         for name in ("Date", "Server", "Content-Type", "Content-Length", "Connection"):
             self.assertIn(name, headers)
 
-    def test_505_headers_present(self):
+    def test_404_not_found_headers(self):
+        """Requesting a missing file should return 404 with expected headers present."""
+        cmd = ["curl", "-i", f"http://{HOST}:{PORT}/no_such_file.html"]
+        result = capture_package_values(cmd)
+        status_line, headers, body = parse_response(result)
 
+        append_report(
+            "404 Not Found",
+            headers,
+            body,
+            body_fmt="bash",
+            command=cmd,
+            status_line=status_line,
+        )
+
+        self.assertTrue(status_line.startswith("HTTP/1.1 404"))
+        for name in ("Date", "Server", "Content-Type", "Content-Length", "Connection"):
+            self.assertIn(name, headers)
+
+    def test_405_method_not_allowed_headers(self):
+        """Request with unsupported method should return 405 Method Not Allowed."""
+        s = socket.socket()
+        s.connect((HOST, PORT))
+        request = "POST /test.html HTTP/1.1\r\nHost: localhost\r\n\r\n"
+        s.send(request.encode("utf-8"))
+        result = s.recv(4096).decode("utf-8")
+        s.close()
+
+        status_line, headers, body = parse_response(result)
+
+        append_report(
+            "405 Method Not Allowed",
+            headers,
+            body,
+            body_fmt="bash",
+            command=["Socket send: " + request.replace("\r\n", "\\r\\n")],
+            status_line=status_line,
+        )
+
+        self.assertTrue(status_line.startswith("HTTP/1.1 405"))
+        for name in ("Date", "Server", "Content-Type", "Content-Length", "Connection"):
+            self.assertIn(name, headers)
+
+    def test_505_unsupported_version_headers(self):
+        """Request with unsupported HTTP version should return 505 Version Not Supported."""
         s = socket.socket()
         s.connect((HOST, PORT))
         request = "GET /test.html HTTP/3.0\r\nHost: localhost\r\n\r\n"
