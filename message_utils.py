@@ -243,11 +243,17 @@ def handle_request(request, cache : Cache):
     if (to_return := request_well_formed(method, version)) is not None:
         return to_return
     
+    
     # Check if cache 
     if (found_request := cache.find_record(headers)) is not None:
-        # Value was found in cache
-        return
-   
+
+        # if is newer than req 'if_modified_since' then need to send updated copy
+        if found_request.is_newer_than(headers["If-Modified-Since"]):
+            return create_200_response(found_request)
+        
+        return create_304_response(found_request)
+
+    # Not in cache
     # Resolve path within DOCUMENT_ROOT to prevent directory traversal
     path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
     if (error_at_srv := valid_webserver_response(path)) is not None:
@@ -263,20 +269,16 @@ def handle_request(request, cache : Cache):
                     # create record
                     to_insert = Record(path) 
 
-                    # 304: Not Modified
-                    if "If-Modified-Since" in headers:
-                        # last_modified = parsedate_to_datetime(headers["If-Modified-Since"]).timestamp()
-
-                        # Send 304 if file has not been modified since the time specified
-                        # i.e. file last modified time is less than or equal to the time in the header
-                        if is_not_modified_since(path, headers["If-Modified-Since"]) is False:
-                            return create_304_response(to_insert)
+                    # Send 304 if file has not been modified since the time specified
+                    # i.e. file last modified time is less than or equal to the time in the header
+                    if is_not_modified_since(path, headers["If-Modified-Since"]) is False:
+                        return create_304_response(to_insert)
                         
                     # 200 OK
                     # must create the response before inserting it into cache as after insertion
                     # it may be touched by other threads during response creation (if shallow copy)
                     to_send = create_200_response(to_insert)  
-                    #cache.insert_response(to_insert)
+                    cache.insert_response(to_insert)
                     return to_send
                
                 else:
