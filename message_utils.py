@@ -76,22 +76,22 @@ def create_200_response(response : Record):
     return header_bytes + body
 
 
-def create_304_response():
+def create_304_response(response : Record):
     """Create a 304 Not Modified HTTP response message.
 
     Returns:
         bytes: A UTF-8 encoded HTTP response message.
 
-        "Cache-Control: 'max-age=3600'\r\n"
-        f"ETag: '{response.get_etag()}'\r\n"
-        f"Last-Modified: {response.get_last_modified()}\r\n"
-        f"Vary: {response.get_vary()}\r\n"
     """
     response_line = "HTTP/1.1 304 Not Modified\r\n"
     headers = (
         f"Date: {get_date_header()}\r\n"
         "Server: Smith-Peters-Web-Server/1.0\r\n"
         f"Content-Length: 0\r\n"
+        "Cache-Control: 'max-age=3600'\r\n"
+        f"ETag: '{response.get_etag()}'\r\n"
+        f"Last-Modified: {response.get_last_modified()}\r\n"
+        f"Vary: {response.get_vary()}\r\n"
         "Connection: close\r\n"
     )
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
@@ -215,6 +215,7 @@ def valid_webserver_response(url):
     
     return None
 
+
 def handle_request(request, cache : Cache):
     """Parse the HTTP request and generate the appropriate response.
 
@@ -241,17 +242,8 @@ def handle_request(request, cache : Cache):
     # Returns a response if request is NOT well formed
     if (to_return := request_well_formed(method, version)) is not None:
         return to_return
-
-    '''
-    TODO: Implement Cache behaviour: 
-    At this point the system knows the request is structurally sound.
-    Enters cache -> If the cache finds the resource determines if code 304 or 200 is appropriate.
-    Cache Miss -> Attempts to acquires resource from 'Web Server' May result in a 403, 404 code.
-                  If the resource is successfully acquired the 304 or 200 procedure is gone through
-                  again.
-    '''
     
-    # Cache wants (URL, ETAG, Modifcation_date)
+    # Check if cache 
     if (found_request := cache.find_record(headers)) is not None:
         # Value was found in cache
         return
@@ -261,28 +253,32 @@ def handle_request(request, cache : Cache):
     if (error_at_srv := valid_webserver_response(path)) is not None:
         return error_at_srv
 
-    # 304: Not Modified
-    if "If-Modified-Since" in headers:
-        # last_modified = parsedate_to_datetime(headers["If-Modified-Since"]).timestamp()
-
-        # Send 304 if file has not been modified since the time specified
-        # i.e. file last modified time is less than or equal to the time in the header
-        if is_not_modified_since(path, headers["If-Modified-Since"]) is False:
-            return create_304_response()
-
+    #TODO: extract into helper function
     if len(lines) > 0:
         parts = request.split()
         if len(parts) >= 2:
             if method == "GET":  # Currently only handling GET requests
                 if os.path.isfile(path):
-                    # 200 OK
+
+                    # create record
                     to_insert = Record(path) 
 
+                    # 304: Not Modified
+                    if "If-Modified-Since" in headers:
+                        # last_modified = parsedate_to_datetime(headers["If-Modified-Since"]).timestamp()
+
+                        # Send 304 if file has not been modified since the time specified
+                        # i.e. file last modified time is less than or equal to the time in the header
+                        if is_not_modified_since(path, headers["If-Modified-Since"]) is False:
+                            return create_304_response(to_insert)
+                        
+                    # 200 OK
                     # must create the response before inserting it into cache as after insertion
                     # it may be touched by other threads during response creation (if shallow copy)
                     to_send = create_200_response(to_insert)  
                     #cache.insert_response(to_insert)
                     return to_send
+               
                 else:
                     body = "File Not Found\n"
                     status = Status(404, "Not Found")
