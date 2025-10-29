@@ -1,14 +1,55 @@
 from email.utils import formatdate, parsedate_to_datetime
 from os.path import getmtime
 from time import time
+from datetime import datetime
+import mimetypes
 
-def get_date_header():
+CACHE_REQ_FIELDS = ["If-None-Match", "If-Modified-Since", "Vary"]
+
+def get_date_header(date:datetime=None) -> str:
     """Generate a Date header for HTTP response.
-
+    
+    Args:
+        date(datetime): is None by default. Otherwise function will get the posix time of the
+        object and return it as a formatted date.
+    
     Returns:
         str: The Date header string.
     """
-    return formatdate(timeval=time(), localtime=False, usegmt=True)
+    if date is None:
+        date = time()
+    else:
+        date = date.timestamp()
+
+    return formatdate(timeval=date, localtime=False, usegmt=True)
+
+
+def compute_etag(content, vary):
+    """
+    computes the etag of a request.
+    
+    Args:
+        content: the main payload of the request
+        vary: the vary header of a request
+
+    Returns:
+        (int): the used etag
+    """
+    return abs(hash((content, vary)))
+
+
+def is_future_date(datetime_obj : datetime) -> bool:
+    """
+    Checks if referenced datetime obj is in the future or not.
+
+    Args:
+        datetime_obj (datetime): a datetime obj that may or may not have a value that is future from now.
+
+    Returns:
+        (bool): If the argument is in the future returns true, otherwise false.
+    """
+    cur_date = datetime.now()
+    return cur_date.timestamp() < datetime_obj.timestamp()
 
 
 def is_not_modified_since(filepath, ims_header):
@@ -41,13 +82,39 @@ def get_last_modified_header(filepath):
     last_modified_time = getmtime(filepath)
     return formatdate(timeval=last_modified_time, localtime=False, usegmt=True)
 
-def convert_datetime_to_posix(datetime):
+
+def convert_reqheader_into_dict(to_convert : list):
+    to_return = {}
+    for header in CACHE_REQ_FIELDS:
+        # Default behaviour is to print "N/A" if value
+        # is not in dict. None is prefered of NA.
+        to_return[header] = None
+
+    for line in to_convert:
+        if line == "":
+            break
+
+        key, value = line.split(":", 1)
+        to_return[key.strip()] = value.strip()
+
+    return to_return
+
+
+def acquire_resource(filepath):
     """
-    Converts a datetime object to a number signifying POSIX time
+    From the passed in filepath returns a tuple containing the file contents and guessed file type.
     Args:
-        datetime: datetime object
-    
+    filepath(str): URL that indicates where to find a requested resource. (should be absolute).
+
     Returns:
-        POSIX time (number)
+    tuple(str, str): tuple[0] contains the content of the file. tuple[1] has the guessed type.
     """
-    return parsedate_to_datetime(datetime).timestamp()
+    with open(filepath, "rb") as file:
+        body = file.read()
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+
+    content_type = mimetypes.guess_type(filepath)[0] or "text/plain; charset=utf-8"
+    
+    # Some values here are temporary
+    return (body, content_type, get_last_modified_header(filepath))
