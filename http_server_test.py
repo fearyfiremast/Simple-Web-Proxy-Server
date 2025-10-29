@@ -394,6 +394,50 @@ class TestPart2(unittest.TestCase):
         )
 
     #TODO: Test cache entires expire on their own time
+    def test_expiry_evicts_record(self):
+
+        WAIT_TIME = 0
+        # sets wait time
+        cmd = capture_package_values(
+            [
+                "curl",
+                "-sS",
+                "-X",
+                "POST",
+                f"http://{HOST}:{PORT}/__cache__/set-expiry?{WAIT_TIME}",
+            ]
+        )
+
+        # put val in cache
+        capture_package_values(
+            ["curl", f"{self.destination}"]
+        )
+
+        # returns size of cache of eviction
+        cmd = capture_package_values(
+            [
+                "curl",
+                "-sS",
+                "-X",
+                "POST",
+                f"http://{HOST}:{PORT}/__cache__/evict-expired",
+            ]
+        )
+
+
+        # Sets cache expiry back to default
+        capture_package_values(
+            [
+                "curl",
+                "-sS",
+                "-X",
+                "POST",
+                f"http://{HOST}:{PORT}/__cache__/set-expiry?{60}",
+            ]
+        )
+
+        self.assertEqual("0", cmd)
+        
 
     #TODO: Test cache with different entries
 
