@@ -1,19 +1,23 @@
 """A module for handling HTTP message creation and parsing."""
 
+import time
 import os
 import logging
 
 # Project imports
-from cache_utils import Cache, Record
+from cache_utils import Cache, Record, DEFAULT_TTL_SECONDS
 from header_utils import (
-    get_date_header, 
-    is_not_modified_since, 
-    convert_reqheader_into_dict
-    )
+    get_date_header,
+    is_not_modified_since,
+    convert_reqheader_into_dict,
+)
 
 # Serve files relative to the repository/module directory (document root)
 DOCUMENT_ROOT = os.path.dirname(os.path.abspath(__file__))
 logger = logging.getLogger(__name__)
+
+# Simulated propagation delay (in seconds) for cache MISS paths; configurable via admin endpoint
+PROP_DELAY: float = 0.0
 
 
 class Status:
@@ -46,7 +50,7 @@ def is_accessable_file(filepath):
 
 
 # response package (content, content_type, last_modified)
-def create_200_response(response : Record):
+def create_200_response(response: Record, extra_headers: dict | None = None):
     """Create an HTTP response message.
 
     Args:
@@ -57,26 +61,32 @@ def create_200_response(response : Record):
     """
     # Create response
     status = Status(200, "OK")
-    body = response.get_content() # pre encoded to UTF-8 by acquire_resources in header_util
+    body = (
+        response.get_content()
+    )  # pre encoded to UTF-8 by acquire_resources in header_util
     response_line = f"HTTP/1.1 {status.code} {status.text}\r\n"
-    headers = (
-        f"Date: {get_date_header()}\r\n"
-        "Server: Smith-Peters-Web-Server/1.0\r\n"
-        f"Content-Type: {body}\r\n"  # Content-Length is the number of bytes
-        f"Content-Length: {len(body)}\r\n"
-        "Cache-Control: 'max-age=3600'\r\n"
-        f"ETag: '{response.get_etag()}'\r\n"
-        f"Last-Modified: {response.get_last_modified()}\r\n"
-        f"Vary: {response.get_vary()}\r\n"
-        "Connection: close\r\n"
-    )
-    #print(f"################### ETag\n {response.get_etag()}", flush=True)
+    headers = [
+        f"Date: {get_date_header()}\r\n",
+        "Server: Smith-Peters-Web-Server/1.0\r\n",
+        f"Content-Type: {response.get_content_type()}\r\n",
+        f"Content-Length: {len(body)}\r\n",
+        "Cache-Control: max-age=3600\r\n",
+        f'ETag: "{response.get_etag()}"\r\n',
+        f"Last-Modified: {response.get_last_modified()}\r\n",
+        f"Vary: {response.get_vary()}\r\n",
+        "Connection: close\r\n",
+    ]
+    if isinstance(extra_headers, dict):
+        for k, v in extra_headers.items():
+            headers.append(f"{k}: {v}\r\n")
+    headers = "".join(headers)
+    # print(f"################### ETag\n {response.get_etag()}", flush=True)
     # Build headers as bytes and concatenate with body bytes
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
 
-def create_304_response(response : Record):
+def create_304_response(response: Record, extra_headers: dict | None = None):
     """Create a 304 Not Modified HTTP response message.
 
     Returns:
@@ -84,16 +94,20 @@ def create_304_response(response : Record):
 
     """
     response_line = "HTTP/1.1 304 Not Modified\r\n"
-    headers = (
-        f"Date: {get_date_header()}\r\n"
-        "Server: Smith-Peters-Web-Server/1.0\r\n"
-        f"Content-Length: 0\r\n"
-        "Cache-Control: 'max-age=3600'\r\n"
-        f"ETag: '{response.get_etag()}'\r\n"
-        f"Last-Modified: {response.get_last_modified()}\r\n"
-        f"Vary: {response.get_vary()}\r\n"
-        "Connection: close\r\n"
-    )
+    headers = [
+        f"Date: {get_date_header()}\r\n",
+        "Server: Smith-Peters-Web-Server/1.0\r\n",
+        "Content-Length: 0\r\n",
+        "Cache-Control: max-age=3600\r\n",
+        f'ETag: "{response.get_etag()}"\r\n',
+        f"Last-Modified: {response.get_last_modified()}\r\n",
+        f"Vary: {response.get_vary()}\r\n",
+        "Connection: close\r\n",
+    ]
+    if isinstance(extra_headers, dict):
+        for k, v in extra_headers.items():
+            headers.append(f"{k}: {v}\r\n")
+    headers = "".join(headers)
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes
 
@@ -138,6 +152,7 @@ def create_404_response():
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
+
 # TODO: Allow the passing in of header arguments as an iteratable object
 def create_response(body, status):
     """Create a generic HTTP response message.
@@ -163,12 +178,13 @@ def create_response(body, status):
     header_bytes = (response_line + headers + "\r\n").encode("utf-8")
     return header_bytes + body
 
+
 def request_well_formed(method, version):
     """
     Checks the request header for the correct version and if it calling a supported method by
     the proxy server.
 
-    Args: 
+    Args:
         method (str): The method contained within the request
         version (str): The version of the http request (formated as "HTTP/x.x")
 
@@ -179,12 +195,12 @@ def request_well_formed(method, version):
 
         otherwise, returns None.
     """
-    supported_methods = ["GET"] # Methods supported by the proxy server
+    supported_methods = ["GET"]  # Methods supported by the proxy server
     supported_versions = ["HTTP/1.0", "HTTP/1.1"]
 
     if method not in supported_methods:
-        body = "Bad Request\n"
-        status = Status(400, "Bad Request")
+        body = "Method Not Allowed\n"
+        status = Status(405, "Method Not Allowed")
         return create_response(body, status)
 
     if version not in supported_versions:
@@ -194,10 +210,9 @@ def request_well_formed(method, version):
 
     return None
 
+
 def valid_webserver_response(url):
-    """
-    
-    """
+    """ """
 
     # print(f"Requested Path: {path}", flush=True)
 
@@ -212,11 +227,11 @@ def valid_webserver_response(url):
         body = "403 Forbidden: Access Denied\n"
         status = Status(403, "Forbidden")
         return create_response(body, status)
-    
+
     return None
 
 
-def handle_request(request, cache : Cache):
+def handle_request(request, cache: Cache):
     """Parse the HTTP request and generate the appropriate response.
 
     Args:
@@ -233,54 +248,118 @@ def handle_request(request, cache : Cache):
     # print(f"Full Request:\n{request}", flush=True)
 
     lines = request.split("\r\n")  # Split request into lines
-    request = lines[0]  # First line is the request line
-    method, path, version = request.split()
+    request_line = lines[0]  # First line is the request line
+    method, path, version = request_line.split()
 
     # Store header in a dictionary
     headers = convert_reqheader_into_dict(lines[1:])
 
+    # Admin endpoint to clear cache (bypass method check except for this path)
+    if path == "/__cache__/clear" and method in ("POST", "GET"):
+        cache.clear_cache()
+        logger.warning("Cache cleared via admin endpoint")
+        return create_response("Cache cleared\n", Status(200, "OK"))
+
+    # Admin endpoint to set artificial MISS delay: /__cache__/set-miss-delay?seconds=1.5
+    admin_path, _, query = path.partition("?")
+    if admin_path == "/__cache__/set-miss-delay" and method in ("POST", "GET"):
+        seconds = None
+        if query:
+            for pair in query.split("&"):
+                if not pair:
+                    continue
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    if k.strip().lower() in ("seconds", "s"):
+                        try:
+                            seconds = float(v)
+                        except ValueError:
+                            seconds = None
+                        break
+        if seconds is None or seconds < 0:
+            return create_response(
+                "Invalid or missing 'seconds' parameter\n", Status(400, "Bad Request")
+            )
+        # Clamp to a reasonable range to avoid extreme hangs in tests
+        seconds = max(0.0, min(seconds, 30.0))
+        global PROP_DELAY
+        PROP_DELAY = seconds
+        logger.warning("MISS delay set to %.3fs via admin endpoint", PROP_DELAY)
+        return create_response(
+            f"Miss delay set to {PROP_DELAY:.3f}s\n", Status(200, "OK")
+        )
+
     # Returns a response if request is NOT well formed
     if (to_return := request_well_formed(method, version)) is not None:
         return to_return
-    
-    
-    # Check if cache 
-    if (found_request := cache.find_record(headers)) is not None:
 
-        # if is newer than req 'if_modified_since' then need to send updated copy
-        if found_request.is_newer_than(headers["If-Modified-Since"]):
-            return create_200_response(found_request)
-        
-        return create_304_response(found_request)
+    # Resolve absolute path within DOCUMENT_ROOT
+    abs_path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
+
+    # Build cache lookup key: request identity + headers (for Vary semantics)
+    cache_key = {
+        "method": method,
+        "url": abs_path,
+        "version": version,
+        "headers": headers,
+    }
+
+    # print(f"Cache Key: {cache_key}", flush=True)
+    # print("Cache Contents Before Lookup:", flush=True)
+    # cache.print_cache()
+
+    # Check if cache has a fresh matching representation
+    if (found_request := cache.find_record(cache_key)) is not None:
+        # Validators: If-None-Match and If-Modified-Since
+        inm = headers.get("If-None-Match")
+        ims = headers.get("If-Modified-Since")
+
+        # Strong/weak ETag handling not implemented; do a simple string compare after stripping quotes
+        if inm is not None:
+            etag_clean = inm.strip().strip("'\"")
+            if etag_clean == str(found_request.get_etag()):
+                return create_304_response(found_request, {"X-Cache": "HIT"})
+
+        if ims is not None and is_not_modified_since(abs_path, ims):
+            return create_304_response(found_request, {"X-Cache": "HIT"})
+
+        # No validators or validators indicate resource changed -> serve 200 from cache
+        return create_200_response(found_request, {"X-Cache": "HIT"})
 
     # Not in cache
-    # Resolve path within DOCUMENT_ROOT to prevent directory traversal
-    path = os.path.join(DOCUMENT_ROOT, path.lstrip("/"))
-    if (error_at_srv := valid_webserver_response(path)) is not None:
+    # Validate path and accessibility at server
+    if (error_at_srv := valid_webserver_response(abs_path)) is not None:
         return error_at_srv
 
-    #TODO: extract into helper function
+    # TODO: extract into helper function
     if len(lines) > 0:
-        parts = request.split()
+        parts = request_line.split()
         if len(parts) >= 2:
             if method == "GET":  # Currently only handling GET requests
-                if os.path.isfile(path):
+                if os.path.isfile(abs_path):
 
-                    # create record
-                    to_insert = Record(path) 
+                    logger.warning("Cache miss for %s", path)
+                    if PROP_DELAY > 0:
+                        time.sleep(PROP_DELAY)
 
-                    # Send 304 if file has not been modified since the time specified
-                    # i.e. file last modified time is less than or equal to the time in the header
-                    if is_not_modified_since(path, headers["If-Modified-Since"]) is False:
-                        return create_304_response(to_insert)
-                        
+                    # create record for the representation
+                    to_insert = Record(
+                        abs_path, method=method, version=version, req_headers=headers
+                    )
+
+                    # Send 304 only if client provided If-Modified-Since and
+                    # the file has not been modified since that time
+                    ims = headers.get("If-Modified-Since")
+                    if ims is not None and is_not_modified_since(abs_path, ims):
+                        return create_304_response(to_insert, {"X-Cache": "MISS"})
+
                     # 200 OK
                     # must create the response before inserting it into cache as after insertion
                     # it may be touched by other threads during response creation (if shallow copy)
-                    to_send = create_200_response(to_insert)  
+                    to_send = create_200_response(to_insert, {"X-Cache": "MISS"})
                     cache.insert_response(to_insert)
                     return to_send
-               
+
                 else:
                     body = "File Not Found\n"
                     status = Status(404, "Not Found")
