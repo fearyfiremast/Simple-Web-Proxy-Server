@@ -17,7 +17,7 @@ class Cache:
     Class that stores and allows the retrieval of recently received requests. These requests are
     stored as Records.
     '''
-    _max_capacity = 1 # cache capacity
+    _max_capacity = 2 # cache capacity
     _records = [] # Stores cached resources
     _lock = threading.Lock()
 
@@ -116,9 +116,12 @@ class Cache:
         if type(record) is not Record:
             print("insert_response: Passed in value is not record. Exiting")
             return
+        
+        if self._max_capacity <= 0:
+            return
 
         with self._lock:
-            if len(self._records) > self._max_capacity:
+            if len(self._records) >= self._max_capacity:
                 expired_records = []
 
                 # Expunge expired records
@@ -171,6 +174,16 @@ class Record:
 
         return
 
+    def __str__(self):
+        return (
+            f"""
+            etag: {self._etag}\n
+            last_modified: {self._last_modified}\n
+            vary: {self._vary}\n
+            expires: {self._expires}\n
+            content_type: {self._content_type}\n
+            content: {self._content}\n
+            """)
 
     def get_expiry(self) -> str:
         """
