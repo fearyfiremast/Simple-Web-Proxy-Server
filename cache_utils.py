@@ -171,6 +171,7 @@ class Record:
 
         return
 
+
     def get_expiry(self) -> str:
         """
         Returns the expiry of the record in date format.
@@ -189,8 +190,7 @@ class Record:
             (int)
         """
         return self._etag
-    
-    
+      
     def get_last_modified(self):
         """
         Gets the date of most recent modification
