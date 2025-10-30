@@ -23,5 +23,7 @@ You should see that the server is now listening for requests at the correct addr
 ```bash
 > python3 http_server_test.py
 ```
+> Note that certain tests may not work correctly on Windows system - please run in a `bash` environment if possible. This is due to a test that creates a locked file, but the Python API is unsupported on Windows.
 
 This will generate `results.md` - the contents of which are included in our report (`report.pdf`).
+
