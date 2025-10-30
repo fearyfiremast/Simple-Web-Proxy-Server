@@ -448,7 +448,7 @@ class TestPart2(unittest.TestCase):
             status_line="HTTP/1.1 200 OK"
         )
 
-        self.assertEqual("0", response)
+        self.assertEqual("Removed expired records.\nRecords in cache: 0", response)
 
     def test_304_with_etag_and_ims_from_cache(self):
         """Request with ETag or IMS that matches cached entry should return 304 and X-Cache: HIT."""

@@ -260,11 +260,11 @@ def handle_request(request, cache: Cache):
         logger.warning("Cache cleared via admin endpoint")
         return create_response("Cache cleared\n", Status(200, "OK"))
     
-    if path == "/__cache__/evict-expired" and method == "POST":
+    if path == "/__cache__/evict-expired" and method in ("POST", "GET"):
         cache.evict_expired()
         logger.warning(f"Evicting expired records")
         return create_response(
-            f"{len(cache._records)}", Status(200, "OK")
+            f"Removed expired records.\nRecords in cache: {len(cache._records)}", Status(200, "OK")
         )
 
     # Admin endpoint to set artificial MISS delay: /__cache__/set-miss-delay?seconds=1.5
@@ -296,11 +296,11 @@ def handle_request(request, cache: Cache):
             f"Miss delay set to {PROP_DELAY:.3f}s\n", Status(200, "OK")
         )
 
-    if admin_path == "/__cache__/set-expiry" and method == "POST":
+    if admin_path == "/__cache__/set-expiry" and method in ("POST", "GET"):
         cache._change_base_TTL(int(query))
         logger.warning(f"Minimum expiration time set to {int(query)}s via admin endpoint")
         return create_response(
-            f"TTL set to {int(query)}s\n", Status(200, "OK")
+            f"DEFAULT_TTL_SECONDS set to: {int(query)}\n", Status(200, "OK")
         )
 
 
